@@ -779,8 +779,12 @@
   window.addEventListener("keydown", onKey);
 
   // --- Audio toggles (right HUD rail) ---
+  // 音效: short click toggle
+  // 音乐: short tap cycles track; long press (~500ms) toggles on/off
   const btnSfx = document.getElementById("btn-sfx");
   const btnBgm = document.getElementById("btn-bgm");
+  const BGM_LONG_MS = 520;
+  const BGM_MOVE_CANCEL_PX = 14;
 
   function refreshAudioButtons() {
     if (!AudioFX) return;
@@ -788,29 +792,142 @@
       const on = AudioFX.isSfxEnabled();
       btnSfx.setAttribute("aria-pressed", on ? "true" : "false");
       btnSfx.title = on ? "音效：开" : "音效：关";
+      btnSfx.textContent = "音效";
     }
     if (btnBgm) {
       const on = AudioFX.isBgmEnabled();
+      const info = AudioFX.getBgmTrackInfo
+        ? AudioFX.getBgmTrackInfo()
+        : { number: 1, name: "", count: 10 };
+      const num = info.number || 1;
+      const name = info.name || "";
       btnBgm.setAttribute("aria-pressed", on ? "true" : "false");
-      btnBgm.title = on ? "音乐：开" : "音乐：关";
+      btnBgm.textContent = on ? `音乐 ${num}` : "音乐";
+      btnBgm.title = on
+        ? `曲目${num} · ${name}（短按切换曲目 / 长按开关）`
+        : `音乐关 · 已选曲目${num}${name ? " · " + name : ""}（短按切换 / 长按开启）`;
     }
   }
 
-  function onAudioToggleClick(kind) {
+  function onSfxClick() {
     if (!AudioFX) return;
     AudioFX.unlock();
-    if (kind === "sfx") {
-      AudioFX.setSfxEnabled(!AudioFX.isSfxEnabled());
-      if (AudioFX.isSfxEnabled()) sfx("move");
-    } else {
-      AudioFX.setBgmEnabled(!AudioFX.isBgmEnabled());
-      syncMusicState();
-    }
+    AudioFX.setSfxEnabled(!AudioFX.isSfxEnabled());
+    if (AudioFX.isSfxEnabled()) sfx("move");
     refreshAudioButtons();
   }
 
-  if (btnSfx) btnSfx.addEventListener("click", () => onAudioToggleClick("sfx"));
-  if (btnBgm) btnBgm.addEventListener("click", () => onAudioToggleClick("bgm"));
+  function cycleBgmTrack() {
+    if (!AudioFX) return;
+    AudioFX.unlock();
+    if (typeof AudioFX.nextBgmTrack === "function") {
+      AudioFX.nextBgmTrack();
+    }
+    // If BGM is on, nextBgmTrack already restarts the new pattern.
+    // If off, selection only changes for next time music is enabled.
+    refreshAudioButtons();
+  }
+
+  function toggleBgmEnabled() {
+    if (!AudioFX) return;
+    AudioFX.unlock();
+    AudioFX.setBgmEnabled(!AudioFX.isBgmEnabled());
+    syncMusicState();
+    refreshAudioButtons();
+  }
+
+  if (btnSfx) btnSfx.addEventListener("click", onSfxClick);
+
+  if (btnBgm) {
+    let longTimer = null;
+    let longFired = false;
+    let activePointer = null;
+    let startX = 0;
+    let startY = 0;
+    let suppressClick = false;
+
+    function clearLongTimer() {
+      if (longTimer != null) {
+        clearTimeout(longTimer);
+        longTimer = null;
+      }
+    }
+
+    function cancelBgmGesture() {
+      clearLongTimer();
+      activePointer = null;
+      longFired = false;
+      suppressClick = true;
+    }
+
+    btnBgm.addEventListener("pointerdown", (e) => {
+      if (e.button != null && e.button !== 0) return;
+      if (activePointer != null) return;
+      activePointer = e.pointerId;
+      longFired = false;
+      suppressClick = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      try {
+        btnBgm.setPointerCapture(e.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      clearLongTimer();
+      longTimer = setTimeout(() => {
+        longTimer = null;
+        if (activePointer == null) return;
+        longFired = true;
+        toggleBgmEnabled();
+      }, BGM_LONG_MS);
+    });
+
+    btnBgm.addEventListener("pointermove", (e) => {
+      if (activePointer == null || e.pointerId !== activePointer) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (dx * dx + dy * dy > BGM_MOVE_CANCEL_PX * BGM_MOVE_CANCEL_PX) {
+        clearLongTimer();
+        // Treat as cancelled: no short-tap cycle either
+        longFired = true;
+      }
+    });
+
+    function endBgmGesture(e) {
+      if (activePointer == null || e.pointerId !== activePointer) return;
+      const wasLong = longFired;
+      clearLongTimer();
+      activePointer = null;
+      suppressClick = true;
+      try {
+        btnBgm.releasePointerCapture(e.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      if (!wasLong) {
+        cycleBgmTrack();
+      }
+      longFired = false;
+    }
+
+    btnBgm.addEventListener("pointerup", endBgmGesture);
+    btnBgm.addEventListener("pointercancel", (e) => {
+      if (activePointer == null || e.pointerId !== activePointer) return;
+      cancelBgmGesture();
+    });
+
+    // Pointer path already handled the action; keyboard Enter/Space still cycles.
+    btnBgm.addEventListener("click", (e) => {
+      if (suppressClick) {
+        suppressClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      cycleBgmTrack();
+    });
+  }
+
   refreshAudioButtons();
   syncMusicState();
 

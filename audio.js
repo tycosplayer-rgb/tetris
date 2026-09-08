@@ -6,12 +6,193 @@
 /**
  * Procedural game audio via Web Audio API (no binary assets).
  * Exposes window.TetrisAudio for game.js / UI toggles.
+ *
+ * BGM: 10 distinct chiptune-style sequenced tracks (oscillators only).
+ * Short-press cycles track; long-press toggles mute (handled in game.js).
  */
 (() => {
   "use strict";
 
   const SFX_KEY = "tetris-sfx-enabled";
   const BGM_KEY = "tetris-bgm-enabled";
+  const BGM_TRACK_KEY = "tetris-bgm-track";
+
+  /**
+   * 10 procedural BGM presets — audibly different tempo / scale / wave / pattern.
+   * Chinese display names for UI title attributes.
+   */
+  const BGM_TRACKS = [
+    {
+      // 1 轻快 — bright major pentatonic, brisk square
+      name: "轻快",
+      stepMs: 240,
+      volume: 0.045,
+      wave: "square",
+      wave2: "triangle",
+      notes: [
+        261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 349.23, 440.0,
+        349.23, 261.63, 329.63, 392.0, 329.63, 246.94, 311.13,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 2,
+      harmonyGain: 0.22,
+      melGain: 0.55,
+      noteDur: 0.2,
+    },
+    {
+      // 2 沉稳 — calm low triangle, slower
+      name: "沉稳",
+      stepMs: 380,
+      volume: 0.04,
+      wave: "triangle",
+      wave2: "sine",
+      notes: [
+        146.83, 174.61, 196.0, 174.61, 130.81, 164.81, 196.0, 164.81, 110.0,
+        146.83, 174.61, 146.83, 98.0, 123.47, 146.83, 123.47,
+      ],
+      bassEvery: 8,
+      harmonyOctave: 1.5,
+      harmonyGain: 0.18,
+      melGain: 0.5,
+      noteDur: 0.32,
+    },
+    {
+      // 3 电子 — minor techno pulse, sawtooth
+      name: "电子",
+      stepMs: 200,
+      volume: 0.042,
+      wave: "sawtooth",
+      wave2: "square",
+      notes: [
+        220.0, 233.08, 261.63, 293.66, 261.63, 233.08, 196.0, 220.0, 246.94,
+        277.18, 246.94, 220.0, 185.0, 207.65, 233.08, 207.65,
+      ],
+      bassEvery: 2,
+      harmonyOctave: 0.5,
+      harmonyGain: 0.28,
+      melGain: 0.42,
+      noteDur: 0.14,
+    },
+    {
+      // 4 像素 — classic 8-bit square arpeggio
+      name: "像素",
+      stepMs: 160,
+      volume: 0.048,
+      wave: "square",
+      wave2: "square",
+      notes: [
+        523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 587.33, 698.46, 880.0,
+        698.46, 523.25, 659.25, 783.99, 659.25, 493.88, 622.25,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 0.5,
+      harmonyGain: 0.2,
+      melGain: 0.5,
+      noteDur: 0.12,
+    },
+    {
+      // 5 梦幻 — sparse ambient sine pads
+      name: "梦幻",
+      stepMs: 420,
+      volume: 0.038,
+      wave: "sine",
+      wave2: "triangle",
+      notes: [
+        196.0, 0, 246.94, 0, 293.66, 0, 369.99, 293.66, 246.94, 0, 220.0, 0,
+        174.61, 0, 220.0, 261.63,
+      ],
+      bassEvery: 8,
+      harmonyOctave: 2,
+      harmonyGain: 0.3,
+      melGain: 0.48,
+      noteDur: 0.45,
+    },
+    {
+      // 6 紧张 — fast tense intervals, saw
+      name: "紧张",
+      stepMs: 150,
+      volume: 0.04,
+      wave: "sawtooth",
+      wave2: "triangle",
+      notes: [
+        311.13, 329.63, 349.23, 369.99, 392.0, 369.99, 349.23, 329.63, 277.18,
+        293.66, 311.13, 329.63, 233.08, 246.94, 261.63, 277.18,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 1.5,
+      harmonyGain: 0.15,
+      melGain: 0.4,
+      noteDur: 0.1,
+    },
+    {
+      // 7 古典 — flowing major arpeggio, soft triangle
+      name: "古典",
+      stepMs: 300,
+      volume: 0.042,
+      wave: "triangle",
+      wave2: "sine",
+      notes: [
+        261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 349.23, 440.0,
+        523.25, 440.0, 349.23, 246.94, 311.13, 369.99, 493.88,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 0.5,
+      harmonyGain: 0.25,
+      melGain: 0.52,
+      noteDur: 0.26,
+    },
+    {
+      // 8 夜行 — bluesy night stroll, low + soft square
+      name: "夜行",
+      stepMs: 340,
+      volume: 0.04,
+      wave: "triangle",
+      wave2: "square",
+      notes: [
+        146.83, 174.61, 185.0, 196.0, 185.0, 174.61, 130.81, 155.56, 174.61,
+        185.0, 174.61, 146.83, 110.0, 130.81, 146.83, 155.56,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 2,
+      harmonyGain: 0.12,
+      melGain: 0.48,
+      noteDur: 0.28,
+    },
+    {
+      // 9 赛博 — syncopated cyber pulse
+      name: "赛博",
+      stepMs: 180,
+      volume: 0.043,
+      wave: "square",
+      wave2: "sawtooth",
+      notes: [
+        277.18, 0, 349.23, 415.3, 0, 349.23, 277.18, 311.13, 0, 369.99, 466.16,
+        0, 233.08, 277.18, 349.23, 415.3,
+      ],
+      bassEvery: 2,
+      harmonyOctave: 0.5,
+      harmonyGain: 0.22,
+      melGain: 0.45,
+      noteDur: 0.11,
+    },
+    {
+      // 10 田园 — pastoral folk pentatonic, gentle
+      name: "田园",
+      stepMs: 320,
+      volume: 0.04,
+      wave: "triangle",
+      wave2: "sine",
+      notes: [
+        196.0, 220.0, 261.63, 293.66, 261.63, 220.0, 174.61, 196.0, 246.94,
+        293.66, 246.94, 196.0, 146.83, 174.61, 220.0, 261.63,
+      ],
+      bassEvery: 4,
+      harmonyOctave: 2,
+      harmonyGain: 0.2,
+      melGain: 0.5,
+      noteDur: 0.28,
+    },
+  ];
 
   function readFlag(key, fallback) {
     try {
@@ -31,8 +212,32 @@
     }
   }
 
+  function readTrackIndex() {
+    try {
+      const v = localStorage.getItem(BGM_TRACK_KEY);
+      if (v === null || v === undefined) return 0;
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n)) return 0;
+      // Accept 0–9 or legacy 1–10
+      if (n >= 1 && n <= 10) return n - 1;
+      if (n >= 0 && n < BGM_TRACKS.length) return n;
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function writeTrackIndex(idx) {
+    try {
+      localStorage.setItem(BGM_TRACK_KEY, String(idx));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   let sfxEnabled = readFlag(SFX_KEY, true);
   let bgmEnabled = readFlag(BGM_KEY, true);
+  let bgmTrack = readTrackIndex();
 
   let ctx = null;
   let masterGain = null;
@@ -43,15 +248,15 @@
   let bgmTimer = null;
   let bgmStep = 0;
   let gameActive = true; // running && !paused && !gameOver
-  let bgmVolumeTarget = 0.045;
   let lastSoftAt = 0;
 
-  // Soft chiptune-ish arpeggio (pentatonic-ish, low duty)
-  const BGM_NOTES = [
-    196.0, 246.94, 293.66, 246.94, 220.0, 293.66, 349.23, 293.66, 196.0,
-    246.94, 329.63, 246.94, 174.61, 220.0, 261.63, 220.0,
-  ];
-  const BGM_STEP_MS = 280;
+  function currentTrack() {
+    return BGM_TRACKS[bgmTrack] || BGM_TRACKS[0];
+  }
+
+  function bgmVolumeTarget() {
+    return currentTrack().volume || 0.045;
+  }
 
   function ensureContext() {
     if (ctx) return ctx;
@@ -86,7 +291,7 @@
   }
 
   function tone(freq, dur, type, gainNode, when, peak, attack, release) {
-    if (!ctx || !gainNode) return;
+    if (!ctx || !gainNode || !freq || freq <= 0) return;
     const t0 = when != null ? when : ctx.currentTime;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -206,15 +411,23 @@
 
   function scheduleBgmNote() {
     if (!ctx || !bgmPlaying || !bgmEnabled) return;
-    const freq = BGM_NOTES[bgmStep % BGM_NOTES.length];
+    const tr = currentTrack();
+    const notes = tr.notes;
+    const freq = notes[bgmStep % notes.length];
     bgmStep++;
+    if (!freq) return; // rest
     const t = ctx.currentTime;
-    // Two soft layers: pulse + quiet triangle octave
-    tone(freq, 0.22, "square", bgmGain, t, 0.55, 0.01, 0.12);
-    tone(freq * 2, 0.18, "triangle", bgmGain, t + 0.01, 0.22, 0.01, 0.1);
-    // Soft bass every 4 steps
-    if (bgmStep % 4 === 1) {
-      tone(freq / 2, 0.3, "triangle", bgmGain, t, 0.35, 0.02, 0.15);
+    const dur = tr.noteDur || 0.2;
+    const mel = tr.melGain != null ? tr.melGain : 0.55;
+    const harm = tr.harmonyGain != null ? tr.harmonyGain : 0.22;
+    const oct = tr.harmonyOctave != null ? tr.harmonyOctave : 2;
+    tone(freq, dur, tr.wave || "square", bgmGain, t, mel, 0.01, dur * 0.45);
+    if (oct && harm > 0) {
+      tone(freq * oct, dur * 0.85, tr.wave2 || "triangle", bgmGain, t + 0.01, harm, 0.01, dur * 0.4);
+    }
+    const every = tr.bassEvery || 4;
+    if (bgmStep % every === 1) {
+      tone(freq / 2, dur * 1.35, "triangle", bgmGain, t, Math.min(0.4, mel * 0.65), 0.02, dur * 0.5);
     }
   }
 
@@ -238,9 +451,9 @@
       bgmStep = 0;
       clearBgmTimer();
       scheduleBgmNote();
-      bgmTimer = setInterval(scheduleBgmNote, BGM_STEP_MS);
+      bgmTimer = setInterval(scheduleBgmNote, currentTrack().stepMs || 280);
     }
-    fadeBgm(bgmVolumeTarget, 220);
+    fadeBgm(bgmVolumeTarget(), 220);
   }
 
   function stopBgm(immediate) {
@@ -253,6 +466,15 @@
       bgmGain.gain.setValueAtTime(0.0001, now);
     } else {
       fadeBgm(0.0001, 160);
+    }
+  }
+
+  function restartBgmIfPlaying() {
+    if (!bgmEnabled || !unlocked || !gameActive) return;
+    const was = bgmPlaying;
+    stopBgm(true);
+    if (was || (bgmEnabled && gameActive)) {
+      startBgm();
     }
   }
 
@@ -279,6 +501,41 @@
     else if (unlocked) syncBgm();
   }
 
+  function setBgmTrack(index) {
+    let idx = index | 0;
+    if (idx < 0) idx = 0;
+    if (idx >= BGM_TRACKS.length) idx = idx % BGM_TRACKS.length;
+    const changed = idx !== bgmTrack;
+    bgmTrack = idx;
+    writeTrackIndex(bgmTrack);
+    if (changed && bgmEnabled && bgmPlaying) {
+      restartBgmIfPlaying();
+    }
+    return bgmTrack;
+  }
+
+  function nextBgmTrack() {
+    return setBgmTrack((bgmTrack + 1) % BGM_TRACKS.length);
+  }
+
+  function getBgmTrack() {
+    return bgmTrack;
+  }
+
+  function getBgmTrackName() {
+    return currentTrack().name;
+  }
+
+  function getBgmTrackInfo() {
+    const tr = currentTrack();
+    return {
+      index: bgmTrack,
+      number: bgmTrack + 1,
+      name: tr.name,
+      count: BGM_TRACKS.length,
+    };
+  }
+
   function setGameMusicActive(active) {
     gameActive = !!active;
     syncBgm();
@@ -296,12 +553,20 @@
   window.TetrisAudio = {
     SFX_KEY,
     BGM_KEY,
+    BGM_TRACK_KEY,
+    BGM_TRACK_COUNT: BGM_TRACKS.length,
+    TRACKS: BGM_TRACKS.map((t, i) => ({ index: i, name: t.name })),
     unlock,
     play: playSfx,
     isSfxEnabled: () => sfxEnabled,
     isBgmEnabled: () => bgmEnabled,
     setSfxEnabled,
     setBgmEnabled,
+    getBgmTrack,
+    getBgmTrackName,
+    getBgmTrackInfo,
+    setBgmTrack,
+    nextBgmTrack,
     setGameMusicActive,
     isUnlocked: () => unlocked,
   };

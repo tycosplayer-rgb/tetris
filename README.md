@@ -54,7 +54,7 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
 - Procedural SFX + looping BGM (Web Audio API; no audio files)
-- Right-rail **音效** / **音乐** toggles persisted in `localStorage`
+- Right-rail **音效** toggle + **音乐** (10 procedural tracks: short tap cycles, long press mutes) persisted in `localStorage`
 
 ## Files
 
@@ -66,14 +66,22 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 
 ## Audio
 
-Sound effects and background music are generated in the browser with the **Web Audio API** (no binary assets, no copyrighted tracks).
+Sound effects and background music are generated in the browser with the **Web Audio API** (no binary assets, no copyrighted tracks). Ten distinct procedural BGM tracks (chiptune oscillators / sequenced notes).
 
 | Control | localStorage key | Default |
 |---------|------------------|---------|
 | 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
-| 音乐 (BGM) | `tetris-bgm-enabled` | on (`true`) |
+| 音乐 on/off | `tetris-bgm-enabled` | on (`true`) |
+| 音乐曲目 | `tetris-bgm-track` | `0` (曲目 1) |
 
-Toggles live on the right HUD rail. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext unlocks on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
+**音乐** button (right HUD rail):
+
+- **Short tap** — cycle track `1→2→…→10→1`. If music is on, the new track starts immediately; if off, only the selection changes.
+- **Long press** (~520ms) — toggle music on/off. Cancelled if the pointer moves too far.
+
+Track names: 轻快 / 沉稳 / 电子 / 像素 / 梦幻 / 紧张 / 古典 / 夜行 / 赛博 / 田园.
+
+SFX stays a simple click toggle. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext unlocks on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
 
 ## License
 
