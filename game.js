@@ -329,6 +329,20 @@
   const btnRestartSide = document.getElementById("btn-restart-side");
   const btnPause = document.getElementById("btn-pause");
 
+
+  const AudioFX = window.TetrisAudio || null;
+
+  function sfx(name, detail) {
+    if (AudioFX) AudioFX.play(name, detail);
+  }
+
+  function syncMusicState() {
+    if (!AudioFX) return;
+    const active = running && !paused && !gameOver;
+    AudioFX.setGameMusicActive(active);
+  }
+
+
   let grid; // ROWS x COLS, null or type letter
   let bag = [];
   let current = null;
@@ -403,7 +417,8 @@
     return true;
   }
 
-  function lockPiece() {
+  function lockPiece(opts) {
+    const fromHard = opts && opts.fromHard;
     const cells = cellsOf(current);
     for (const { x, y } of cells) {
       if (y < 0) {
@@ -412,6 +427,7 @@
       }
       grid[y][x] = current.type;
     }
+    if (!fromHard) sfx("lock");
     clearLines();
     spawnNext();
   }
@@ -430,10 +446,14 @@
       score += SCORE_TABLE[cleared] * level;
       lines += cleared;
       const newLevel = Math.floor(lines / 10) + 1;
+      let leveled = false;
       if (newLevel !== level) {
         level = newLevel;
         dropInterval = Math.max(100, 1000 - (level - 1) * 80);
+        leveled = true;
       }
+      sfx("clear", cleared);
+      if (leveled) sfx("level");
       updateHUD();
     }
   }
@@ -455,6 +475,7 @@
       current.y++;
       score += 1;
       updateHUD();
+      sfx("soft");
     } else {
       lockPiece();
     }
@@ -467,12 +488,16 @@
     current.y += dist;
     score += dist * 2;
     updateHUD();
-    lockPiece();
+    sfx("hard");
+    lockPiece({ fromHard: true });
   }
 
   function move(dx) {
     if (!current || gameOver || paused) return;
-    if (valid(current, dx, 0)) current.x += dx;
+    if (valid(current, dx, 0)) {
+      current.x += dx;
+      sfx("move");
+    }
   }
 
   function rotate(dir) {
@@ -504,6 +529,7 @@
         current.rot = to;
         current.x += ox;
         current.y += oy;
+        sfx("rotate");
         return;
       }
     }
@@ -638,6 +664,8 @@
     running = false;
     paused = false;
     btnPause.textContent = "暂停";
+    sfx("over");
+    syncMusicState();
     showOverlay("游戏结束", "Game Over — 点击重新开始", true);
     drawBoard();
   }
@@ -653,6 +681,7 @@
       hideOverlay();
       lastTime = performance.now();
     }
+    syncMusicState();
   }
 
   function resetGame() {
@@ -673,6 +702,8 @@
     nextType = takeFromBag();
     spawnNext();
     updateHUD();
+    syncMusicState();
+    if (AudioFX) AudioFX.unlock();
     lastTime = performance.now();
     loop(lastTime);
   }
@@ -746,6 +777,43 @@
   btnRestartSide.addEventListener("click", resetGame);
   btnPause.addEventListener("click", togglePause);
   window.addEventListener("keydown", onKey);
+
+  // --- Audio toggles (right HUD rail) ---
+  const btnSfx = document.getElementById("btn-sfx");
+  const btnBgm = document.getElementById("btn-bgm");
+
+  function refreshAudioButtons() {
+    if (!AudioFX) return;
+    if (btnSfx) {
+      const on = AudioFX.isSfxEnabled();
+      btnSfx.setAttribute("aria-pressed", on ? "true" : "false");
+      btnSfx.title = on ? "音效：开" : "音效：关";
+    }
+    if (btnBgm) {
+      const on = AudioFX.isBgmEnabled();
+      btnBgm.setAttribute("aria-pressed", on ? "true" : "false");
+      btnBgm.title = on ? "音乐：开" : "音乐：关";
+    }
+  }
+
+  function onAudioToggleClick(kind) {
+    if (!AudioFX) return;
+    AudioFX.unlock();
+    if (kind === "sfx") {
+      AudioFX.setSfxEnabled(!AudioFX.isSfxEnabled());
+      if (AudioFX.isSfxEnabled()) sfx("move");
+    } else {
+      AudioFX.setBgmEnabled(!AudioFX.isBgmEnabled());
+      syncMusicState();
+    }
+    refreshAudioButtons();
+  }
+
+  if (btnSfx) btnSfx.addEventListener("click", () => onAudioToggleClick("sfx"));
+  if (btnBgm) btnBgm.addEventListener("click", () => onAudioToggleClick("bgm"));
+  refreshAudioButtons();
+  syncMusicState();
+
 
   // --- On-screen control pad (touch / mouse) ---
   const controlPad = document.getElementById("control-pad");

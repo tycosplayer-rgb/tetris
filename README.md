@@ -53,13 +53,27 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 - Ghost piece, pause, game over + restart
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
+- Procedural SFX + looping BGM (Web Audio API; no audio files)
+- Right-rail **音效** / **音乐** toggles persisted in `localStorage`
 
 ## Files
 
 - `index.html` — page structure
 - `style.css` — dark modern UI + responsive breakpoints
 - `game.js` — game logic, rendering, touch pad, board fit
+- `audio.js` — Web Audio procedural SFX / BGM + preference helpers
 - `LICENSE` — MIT License
+
+## Audio
+
+Sound effects and background music are generated in the browser with the **Web Audio API** (no binary assets, no copyrighted tracks).
+
+| Control | localStorage key | Default |
+|---------|------------------|---------|
+| 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
+| 音乐 (BGM) | `tetris-bgm-enabled` | on (`true`) |
+
+Toggles live on the right HUD rail. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext unlocks on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
 
 ## License
 

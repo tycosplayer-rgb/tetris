@@ -1,0 +1,308 @@
+/*
+  Copyright (c) 2026 tycosplayer-rgb <326186931+tycosplayer-rgb@users.noreply.github.com>
+  SPDX-License-Identifier: MIT
+*/
+
+/**
+ * Procedural game audio via Web Audio API (no binary assets).
+ * Exposes window.TetrisAudio for game.js / UI toggles.
+ */
+(() => {
+  "use strict";
+
+  const SFX_KEY = "tetris-sfx-enabled";
+  const BGM_KEY = "tetris-bgm-enabled";
+
+  function readFlag(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v === null || v === undefined) return fallback;
+      return v === "1" || v === "true";
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function writeFlag(key, on) {
+    try {
+      localStorage.setItem(key, on ? "true" : "false");
+    } catch (_) {
+      /* ignore quota / private mode */
+    }
+  }
+
+  let sfxEnabled = readFlag(SFX_KEY, true);
+  let bgmEnabled = readFlag(BGM_KEY, true);
+
+  let ctx = null;
+  let masterGain = null;
+  let sfxGain = null;
+  let bgmGain = null;
+  let unlocked = false;
+  let bgmPlaying = false;
+  let bgmTimer = null;
+  let bgmStep = 0;
+  let gameActive = true; // running && !paused && !gameOver
+  let bgmVolumeTarget = 0.045;
+  let lastSoftAt = 0;
+
+  // Soft chiptune-ish arpeggio (pentatonic-ish, low duty)
+  const BGM_NOTES = [
+    196.0, 246.94, 293.66, 246.94, 220.0, 293.66, 349.23, 293.66, 196.0,
+    246.94, 329.63, 246.94, 174.61, 220.0, 261.63, 220.0,
+  ];
+  const BGM_STEP_MS = 280;
+
+  function ensureContext() {
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 1;
+    masterGain.connect(ctx.destination);
+
+    sfxGain = ctx.createGain();
+    sfxGain.gain.value = sfxEnabled ? 0.85 : 0;
+    sfxGain.connect(masterGain);
+
+    bgmGain = ctx.createGain();
+    bgmGain.gain.value = 0;
+    bgmGain.connect(masterGain);
+    return ctx;
+  }
+
+  function unlock() {
+    const c = ensureContext();
+    if (!c) return Promise.resolve(false);
+    const p = c.state === "suspended" ? c.resume() : Promise.resolve();
+    return p
+      .then(() => {
+        unlocked = true;
+        syncBgm();
+        return true;
+      })
+      .catch(() => false);
+  }
+
+  function tone(freq, dur, type, gainNode, when, peak, attack, release) {
+    if (!ctx || !gainNode) return;
+    const t0 = when != null ? when : ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type || "square";
+    osc.frequency.setValueAtTime(freq, t0);
+    const pk = peak != null ? peak : 0.12;
+    const atk = attack != null ? attack : 0.008;
+    const rel = release != null ? release : Math.max(0.04, dur * 0.45);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(pk, t0 + atk);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(atk + 0.01, dur - rel));
+    osc.connect(g);
+    g.connect(gainNode);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+
+  function noiseBurst(dur, peak, filterFreq) {
+    if (!ctx || !sfxGain || !sfxEnabled) return;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = filterFreq || 1200;
+    filter.Q.value = 0.8;
+    const g = ctx.createGain();
+    const t0 = ctx.currentTime;
+    g.gain.setValueAtTime(peak || 0.08, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(sfxGain);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+  }
+
+  function playSfx(name, detail) {
+    if (!sfxEnabled) return;
+    const c = ensureContext();
+    if (!c || !unlocked) return;
+    if (c.state === "suspended") {
+      c.resume().catch(() => {});
+    }
+    const t = c.currentTime;
+    switch (name) {
+      case "move":
+        tone(420, 0.045, "triangle", sfxGain, t, 0.06, 0.004, 0.03);
+        break;
+      case "rotate":
+        tone(520, 0.05, "square", sfxGain, t, 0.05, 0.004, 0.03);
+        tone(780, 0.06, "square", sfxGain, t + 0.03, 0.04, 0.004, 0.035);
+        break;
+      case "soft": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 70) break;
+        lastSoftAt = nowMs;
+        tone(280, 0.03, "triangle", sfxGain, t, 0.028, 0.003, 0.02);
+        break;
+      }
+      case "hard":
+        tone(180, 0.08, "sawtooth", sfxGain, t, 0.1, 0.004, 0.05);
+        tone(90, 0.12, "triangle", sfxGain, t + 0.02, 0.08, 0.005, 0.07);
+        noiseBurst(0.06, 0.05, 600);
+        break;
+      case "lock":
+        tone(160, 0.07, "triangle", sfxGain, t, 0.07, 0.005, 0.04);
+        noiseBurst(0.04, 0.03, 900);
+        break;
+      case "clear": {
+        const n = Math.max(1, Math.min(4, detail | 0 || 1));
+        const base = 440;
+        for (let i = 0; i < n; i++) {
+          tone(
+            base * (1 + i * 0.28),
+            0.1 + i * 0.04,
+            "square",
+            sfxGain,
+            t + i * 0.055,
+            0.07,
+            0.006,
+            0.06
+          );
+        }
+        if (n >= 4) {
+          tone(880, 0.22, "triangle", sfxGain, t + 0.18, 0.08, 0.01, 0.1);
+          tone(1174, 0.28, "triangle", sfxGain, t + 0.26, 0.06, 0.01, 0.12);
+        }
+        break;
+      }
+      case "level":
+        tone(523.25, 0.1, "square", sfxGain, t, 0.07, 0.008, 0.05);
+        tone(659.25, 0.12, "square", sfxGain, t + 0.1, 0.07, 0.008, 0.06);
+        tone(783.99, 0.16, "square", sfxGain, t + 0.2, 0.08, 0.008, 0.08);
+        break;
+      case "over":
+        tone(392, 0.18, "sawtooth", sfxGain, t, 0.08, 0.01, 0.1);
+        tone(311, 0.22, "sawtooth", sfxGain, t + 0.14, 0.08, 0.01, 0.12);
+        tone(233, 0.35, "triangle", sfxGain, t + 0.3, 0.09, 0.01, 0.18);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function clearBgmTimer() {
+    if (bgmTimer != null) {
+      clearInterval(bgmTimer);
+      bgmTimer = null;
+    }
+  }
+
+  function scheduleBgmNote() {
+    if (!ctx || !bgmPlaying || !bgmEnabled) return;
+    const freq = BGM_NOTES[bgmStep % BGM_NOTES.length];
+    bgmStep++;
+    const t = ctx.currentTime;
+    // Two soft layers: pulse + quiet triangle octave
+    tone(freq, 0.22, "square", bgmGain, t, 0.55, 0.01, 0.12);
+    tone(freq * 2, 0.18, "triangle", bgmGain, t + 0.01, 0.22, 0.01, 0.1);
+    // Soft bass every 4 steps
+    if (bgmStep % 4 === 1) {
+      tone(freq / 2, 0.3, "triangle", bgmGain, t, 0.35, 0.02, 0.15);
+    }
+  }
+
+  function fadeBgm(to, ms) {
+    if (!ctx || !bgmGain) return;
+    const now = ctx.currentTime;
+    const sec = Math.max(0.02, (ms || 180) / 1000);
+    bgmGain.gain.cancelScheduledValues(now);
+    bgmGain.gain.setValueAtTime(Math.max(0.0001, bgmGain.gain.value), now);
+    bgmGain.gain.linearRampToValueAtTime(Math.max(0.0001, to), now + sec);
+  }
+
+  function startBgm() {
+    const c = ensureContext();
+    if (!c || !unlocked || !bgmEnabled || !gameActive) return;
+    if (c.state === "suspended") {
+      c.resume().catch(() => {});
+    }
+    if (!bgmPlaying) {
+      bgmPlaying = true;
+      bgmStep = 0;
+      clearBgmTimer();
+      scheduleBgmNote();
+      bgmTimer = setInterval(scheduleBgmNote, BGM_STEP_MS);
+    }
+    fadeBgm(bgmVolumeTarget, 220);
+  }
+
+  function stopBgm(immediate) {
+    clearBgmTimer();
+    bgmPlaying = false;
+    if (!bgmGain || !ctx) return;
+    if (immediate) {
+      const now = ctx.currentTime;
+      bgmGain.gain.cancelScheduledValues(now);
+      bgmGain.gain.setValueAtTime(0.0001, now);
+    } else {
+      fadeBgm(0.0001, 160);
+    }
+  }
+
+  function syncBgm() {
+    if (bgmEnabled && unlocked && gameActive) startBgm();
+    else stopBgm(true);
+  }
+
+  function setSfxEnabled(on) {
+    sfxEnabled = !!on;
+    writeFlag(SFX_KEY, sfxEnabled);
+    ensureContext();
+    if (sfxGain && ctx) {
+      const now = ctx.currentTime;
+      sfxGain.gain.cancelScheduledValues(now);
+      sfxGain.gain.setValueAtTime(sfxEnabled ? 0.85 : 0, now);
+    }
+  }
+
+  function setBgmEnabled(on) {
+    bgmEnabled = !!on;
+    writeFlag(BGM_KEY, bgmEnabled);
+    if (!bgmEnabled) stopBgm(true);
+    else if (unlocked) syncBgm();
+  }
+
+  function setGameMusicActive(active) {
+    gameActive = !!active;
+    syncBgm();
+  }
+
+  // Auto-unlock on first user gesture
+  function onFirstGesture() {
+    unlock();
+  }
+  const gestureOpts = { capture: true, passive: true };
+  ["pointerdown", "keydown", "touchstart"].forEach((ev) => {
+    window.addEventListener(ev, onFirstGesture, gestureOpts);
+  });
+
+  window.TetrisAudio = {
+    SFX_KEY,
+    BGM_KEY,
+    unlock,
+    play: playSfx,
+    isSfxEnabled: () => sfxEnabled,
+    isBgmEnabled: () => bgmEnabled,
+    setSfxEnabled,
+    setBgmEnabled,
+    setGameMusicActive,
+    isUnlocked: () => unlocked,
+  };
+})();

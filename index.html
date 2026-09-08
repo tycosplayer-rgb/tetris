@@ -59,6 +59,10 @@
         <div class="action-btns">
           <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
           <button type="button" id="btn-restart-side" class="btn">重新开始</button>
+          <div class="audio-toggles" aria-label="声音开关">
+            <button type="button" id="btn-sfx" class="btn btn-audio" aria-pressed="true" title="音效开关">音效</button>
+            <button type="button" id="btn-bgm" class="btn btn-audio" aria-pressed="true" title="音乐开关">音乐</button>
+          </div>
         </div>
 
         <div class="help help-desktop" aria-label="键盘操作">
@@ -100,6 +104,7 @@
       Classic 10×20 · 七种方块 · 消行升级加速
     </footer>
   </div>
+  <script src="audio.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
