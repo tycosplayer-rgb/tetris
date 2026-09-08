@@ -744,11 +744,19 @@
 
   // --- On-screen control pad (touch / mouse) ---
   const controlPad = document.getElementById("control-pad");
+  const btnEditLayout = document.getElementById("btn-edit-layout");
+  const btnResetLayout = document.getElementById("btn-reset-layout");
+  const LAYOUT_STORAGE_KEY = "tetris-control-layout-v1";
+  const DEFAULT_LAYOUT = ["ccw", "cw", "hard", "left", "down", "right"];
   const REPEAT_DELAY = 180; // ms before hold-repeat starts
   const REPEAT_RATE = 55; // ms between repeats
   let holdTimer = null;
   let holdInterval = null;
   let activeHoldBtn = null;
+  let layoutEditMode = false;
+  let dragBtn = null;
+  let dragPointerId = null;
+  let dragOverBtn = null;
 
   function runPadAction(action) {
     if (action === "left") move(-1);
@@ -786,11 +794,164 @@
     }, REPEAT_DELAY);
   }
 
+  function getPadButtons() {
+    return Array.from(controlPad.querySelectorAll(".pad-btn"));
+  }
+
+  function getCurrentLayout() {
+    return getPadButtons()
+      .map((btn) => btn.dataset.action)
+      .filter(Boolean);
+  }
+
+  function isValidLayout(order) {
+    if (!Array.isArray(order) || order.length !== DEFAULT_LAYOUT.length) {
+      return false;
+    }
+    const expected = new Set(DEFAULT_LAYOUT);
+    const seen = new Set();
+    for (const id of order) {
+      if (typeof id !== "string" || !expected.has(id) || seen.has(id)) {
+        return false;
+      }
+      seen.add(id);
+    }
+    return seen.size === expected.size;
+  }
+
+  function applyLayout(order) {
+    if (!controlPad || !isValidLayout(order)) return false;
+    const byAction = new Map();
+    for (const btn of getPadButtons()) {
+      byAction.set(btn.dataset.action, btn);
+    }
+    for (const action of order) {
+      const btn = byAction.get(action);
+      if (btn) controlPad.appendChild(btn);
+    }
+    return true;
+  }
+
+  function saveLayout() {
+    try {
+      localStorage.setItem(
+        LAYOUT_STORAGE_KEY,
+        JSON.stringify(getCurrentLayout())
+      );
+    } catch (_) {
+      /* ignore quota / private mode */
+    }
+  }
+
+  function loadLayout() {
+    try {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (!raw) {
+        applyLayout(DEFAULT_LAYOUT);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!applyLayout(parsed)) {
+        localStorage.removeItem(LAYOUT_STORAGE_KEY);
+        applyLayout(DEFAULT_LAYOUT);
+      }
+    } catch (_) {
+      try {
+        localStorage.removeItem(LAYOUT_STORAGE_KEY);
+      } catch (__) {
+        /* ignore */
+      }
+      applyLayout(DEFAULT_LAYOUT);
+    }
+  }
+
+  function resetLayout() {
+    clearDragState();
+    applyLayout(DEFAULT_LAYOUT);
+    try {
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function setEditMode(on) {
+    const next = !!on;
+    if (!next && layoutEditMode) {
+      clearDragState();
+      saveLayout();
+    }
+    layoutEditMode = next;
+    clearHold();
+    clearDragState();
+    if (!controlPad) return;
+    controlPad.classList.toggle("is-editing", layoutEditMode);
+    if (btnEditLayout) {
+      btnEditLayout.setAttribute(
+        "aria-pressed",
+        layoutEditMode ? "true" : "false"
+      );
+      btnEditLayout.textContent = layoutEditMode ? "完成编辑" : "编辑布局";
+    }
+  }
+
+  function clearDragState() {
+    if (dragBtn) {
+      dragBtn.classList.remove("is-dragging");
+      if (
+        dragPointerId != null &&
+        dragBtn.releasePointerCapture
+      ) {
+        try {
+          dragBtn.releasePointerCapture(dragPointerId);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+    if (dragOverBtn) {
+      dragOverBtn.classList.remove("drop-target");
+    }
+    dragBtn = null;
+    dragPointerId = null;
+    dragOverBtn = null;
+  }
+
+  function reorderBefore(target) {
+    if (!dragBtn || !target || dragBtn === target) return;
+    const buttons = getPadButtons();
+    const from = buttons.indexOf(dragBtn);
+    const to = buttons.indexOf(target);
+    if (from < 0 || to < 0) return;
+    if (from < to) {
+      controlPad.insertBefore(dragBtn, target.nextSibling);
+    } else {
+      controlPad.insertBefore(dragBtn, target);
+    }
+  }
+
   function onPadPointerDown(e) {
     const btn = e.target.closest(".pad-btn");
     if (!btn || !controlPad.contains(btn)) return;
     e.preventDefault();
     btn.blur();
+
+    if (layoutEditMode) {
+      clearHold();
+      clearDragState();
+      dragBtn = btn;
+      dragPointerId = e.pointerId;
+      dragBtn.classList.add("is-dragging");
+      if (btn.setPointerCapture && e.pointerId != null) {
+        try {
+          btn.setPointerCapture(e.pointerId);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      return;
+    }
+
     const action = btn.dataset.action;
     if (!action) return;
     // Capture pointer so we get pointerup even if finger slides off
@@ -804,7 +965,36 @@
     startHold(btn, action);
   }
 
+  function onPadPointerMove(e) {
+    if (!layoutEditMode || !dragBtn) return;
+    if (dragPointerId != null && e.pointerId !== dragPointerId) return;
+    e.preventDefault();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const over = el && el.closest ? el.closest(".pad-btn") : null;
+    if (!over || !controlPad.contains(over) || over === dragBtn) {
+      if (dragOverBtn) {
+        dragOverBtn.classList.remove("drop-target");
+        dragOverBtn = null;
+      }
+      return;
+    }
+    if (dragOverBtn && dragOverBtn !== over) {
+      dragOverBtn.classList.remove("drop-target");
+    }
+    dragOverBtn = over;
+    dragOverBtn.classList.add("drop-target");
+    reorderBefore(over);
+  }
+
   function onPadPointerUp(e) {
+    if (layoutEditMode) {
+      if (dragBtn) {
+        e.preventDefault();
+        clearDragState();
+        saveLayout();
+      }
+      return;
+    }
     const btn = e.target.closest(".pad-btn");
     if (!btn && !activeHoldBtn) return;
     e.preventDefault();
@@ -812,18 +1002,34 @@
   }
 
   if (controlPad) {
+    loadLayout();
     controlPad.addEventListener("pointerdown", onPadPointerDown);
+    controlPad.addEventListener("pointermove", onPadPointerMove);
     controlPad.addEventListener("pointerup", onPadPointerUp);
     controlPad.addEventListener("pointercancel", onPadPointerUp);
     controlPad.addEventListener("pointerleave", (e) => {
       // Only clear if leaving the pad entirely while holding
-      if (e.target === controlPad) clearHold();
+      if (!layoutEditMode && e.target === controlPad) clearHold();
     });
     // Prevent context menu / focus steal on long-press
     controlPad.addEventListener("contextmenu", (e) => e.preventDefault());
     // Keep keyboard usable: don't let buttons keep focus after click
     controlPad.addEventListener("focusin", (e) => {
       if (e.target && e.target.blur) e.target.blur();
+    });
+  }
+
+  if (btnEditLayout) {
+    btnEditLayout.addEventListener("click", () => {
+      setEditMode(!layoutEditMode);
+      btnEditLayout.blur();
+    });
+  }
+
+  if (btnResetLayout) {
+    btnResetLayout.addEventListener("click", () => {
+      resetLayout();
+      btnResetLayout.blur();
     });
   }
 

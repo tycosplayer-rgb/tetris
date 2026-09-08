@@ -52,13 +52,15 @@
           </div>
         </div>
 
-        <div class="control-pad" id="control-pad" aria-label="触控操作">
-          <div class="pad-row pad-rotate">
+        <div class="control-pad-wrap">
+          <div class="pad-toolbar">
+            <button type="button" id="btn-edit-layout" class="pad-tool-btn" aria-pressed="false">编辑布局</button>
+            <button type="button" id="btn-reset-layout" class="pad-tool-btn pad-tool-muted">重置布局</button>
+          </div>
+          <div class="control-pad" id="control-pad" aria-label="触控操作">
             <button type="button" class="pad-btn" data-action="ccw" aria-label="逆旋">逆旋</button>
             <button type="button" class="pad-btn" data-action="cw" aria-label="顺旋">顺旋</button>
             <button type="button" class="pad-btn pad-hard" data-action="hard" aria-label="硬降">硬降</button>
-          </div>
-          <div class="pad-row pad-move">
             <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">← 左移</button>
             <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓ 软降</button>
             <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">右移 →</button>
