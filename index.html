@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!--
+  Copyright (c) 2026 tycosplayer-rgb <326186931+tycosplayer-rgb@users.noreply.github.com>
+  SPDX-License-Identifier: MIT
+-->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
@@ -18,8 +22,21 @@
     </header>
 
     <main class="main">
-      <aside class="panel left-panel">
-        <div class="stats-row">
+      <section class="play-area" aria-label="游戏区域">
+        <div class="board-wrap">
+          <canvas id="board" width="300" height="600" aria-label="游戏板"></canvas>
+          <div id="overlay" class="overlay hidden">
+            <div class="overlay-card">
+              <h2 id="overlay-title">暂停</h2>
+              <p id="overlay-msg">按 P 继续</p>
+              <button type="button" id="btn-restart" class="btn">重新开始</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="hud-rail" aria-label="状态与操作">
+        <div class="stats-col">
           <div class="stat-card">
             <div class="stat-label">分数 <span class="en hide-narrow">/ Score</span></div>
             <div class="stat-value" id="score">0</div>
@@ -33,6 +50,17 @@
             <div class="stat-value" id="lines">0</div>
           </div>
         </div>
+
+        <div class="stat-card next-card">
+          <div class="stat-label">下一个 <span class="en hide-narrow">/ Next</span></div>
+          <canvas id="next" width="120" height="120"></canvas>
+        </div>
+
+        <div class="action-btns">
+          <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
+          <button type="button" id="btn-restart-side" class="btn">重新开始</button>
+        </div>
+
         <div class="help help-desktop" aria-label="键盘操作">
           <h3>操作 / Controls</h3>
           <ul>
@@ -47,44 +75,20 @@
         </div>
       </aside>
 
-      <section class="board-column">
-        <div class="board-wrap">
-          <canvas id="board" width="300" height="600" aria-label="游戏板"></canvas>
-          <div id="overlay" class="overlay hidden">
-            <div class="overlay-card">
-              <h2 id="overlay-title">暂停</h2>
-              <p id="overlay-msg">按 P 继续</p>
-              <button type="button" id="btn-restart" class="btn">重新开始</button>
-            </div>
-          </div>
+      <div class="control-pad-wrap">
+        <div class="pad-toolbar">
+          <button type="button" id="btn-edit-layout" class="pad-tool-btn" aria-pressed="false">编辑布局</button>
+          <button type="button" id="btn-reset-layout" class="pad-tool-btn pad-tool-muted">重置布局</button>
         </div>
-
-        <div class="control-pad-wrap">
-          <div class="pad-toolbar">
-            <button type="button" id="btn-edit-layout" class="pad-tool-btn" aria-pressed="false">编辑布局</button>
-            <button type="button" id="btn-reset-layout" class="pad-tool-btn pad-tool-muted">重置布局</button>
-          </div>
-          <div class="control-pad" id="control-pad" aria-label="触控操作">
-            <button type="button" class="pad-btn" data-action="ccw" aria-label="逆旋">逆旋</button>
-            <button type="button" class="pad-btn" data-action="cw" aria-label="顺旋">顺旋</button>
-            <button type="button" class="pad-btn pad-hard" data-action="hard" aria-label="硬降">硬降</button>
-            <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">←</button>
-            <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓</button>
-            <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">→</button>
-          </div>
+        <div class="control-pad" id="control-pad" aria-label="触控操作">
+          <button type="button" class="pad-btn" data-action="ccw" aria-label="逆旋">逆旋</button>
+          <button type="button" class="pad-btn" data-action="cw" aria-label="顺旋">顺旋</button>
+          <button type="button" class="pad-btn pad-hard" data-action="hard" aria-label="硬降">硬降</button>
+          <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">←</button>
+          <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓</button>
+          <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">→</button>
         </div>
-      </section>
-
-      <aside class="panel right-panel">
-        <div class="stat-card next-card">
-          <div class="stat-label">下一个 <span class="en hide-narrow">/ Next</span></div>
-          <canvas id="next" width="120" height="120"></canvas>
-        </div>
-        <div class="action-btns">
-          <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
-          <button type="button" id="btn-restart-side" class="btn">重新开始</button>
-        </div>
-      </aside>
+      </div>
 
       <details class="help help-mobile">
         <summary>操作提示</summary>

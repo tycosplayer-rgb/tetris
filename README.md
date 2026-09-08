@@ -40,8 +40,8 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 
 ## Mobile
 
-- Portrait-first layout: compact HUD, scaled 10×20 board, large touch targets
-- Landscape: board + controls side-by-side when space allows
+- Portrait: large board on the left, slim vertical right rail (score / level / lines / next / pause / restart); control pad below spanning width
+- Landscape: board + pad with the same right rail when space allows
 - Safe-area insets for notched devices; keyboard help collapses to a short tip on small screens
 
 ## Features
@@ -59,3 +59,8 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 - `index.html` — page structure
 - `style.css` — dark modern UI + responsive breakpoints
 - `game.js` — game logic, rendering, touch pad, board fit
+- `LICENSE` — MIT License
+
+## License
+
+MIT © 2026 tycosplayer-rgb — see [`LICENSE`](LICENSE).

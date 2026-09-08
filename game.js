@@ -1,3 +1,8 @@
+/*
+  Copyright (c) 2026 tycosplayer-rgb <326186931+tycosplayer-rgb@users.noreply.github.com>
+  SPDX-License-Identifier: MIT
+*/
+
 (() => {
   "use strict";
 
@@ -1043,8 +1048,9 @@
   // --- Responsive board sizing (CSS display size; canvas buffer stays 300×600) ---
   function fitBoard() {
     const wrap = boardCanvas && boardCanvas.parentElement;
-    const col = wrap && wrap.closest(".board-column");
-    if (!boardCanvas || !wrap || !col) return;
+    const play = wrap && wrap.closest(".play-area");
+    const main = play && play.closest(".main");
+    if (!boardCanvas || !wrap || !play) return;
 
     const mqNarrow = window.matchMedia("(max-width: 800px)").matches;
     const mqLandscape = window.matchMedia(
@@ -1062,33 +1068,34 @@
     const viewW = vv ? vv.width : window.innerWidth;
     const viewH = vv ? vv.height : window.innerHeight;
 
-    const padWrap = col.querySelector(".control-pad-wrap");
+    const padWrap =
+      (main && main.querySelector(".control-pad-wrap")) ||
+      document.querySelector(".control-pad-wrap");
     const styles = getComputedStyle(document.documentElement);
     const safeL = parseFloat(styles.getPropertyValue("--safe-left")) || 0;
     const safeR = parseFloat(styles.getPropertyValue("--safe-right")) || 0;
     const safeB = parseFloat(styles.getPropertyValue("--safe-bottom")) || 0;
 
-    // Horizontal room — allow up to ~360px so board can dominate tall phones
-    const colW = col.clientWidth || viewW;
-    const sidePad = mqLandscape ? 16 : 12;
-    const maxW = Math.min(360, colW - 4, viewW - safeL - safeR - sidePad);
+    // Horizontal: play-area width (board left of slim right rail) — up to ~400px
+    const playW = play.clientWidth || viewW;
+    const sidePad = mqLandscape ? 12 : 8;
+    const maxW = Math.min(400, playW - 4, viewW - safeL - safeR - sidePad);
 
-    // Vertical: pad is compact; measure live so HUD shrinks free more height
-    const padH = padWrap ? padWrap.getBoundingClientRect().height : 110;
+    // Vertical: no top HUD — only compact header above board; pad sits below
+    const padH = padWrap ? padWrap.getBoundingClientRect().height : 100;
     const boardTop = wrap.getBoundingClientRect().top;
-    // Slim HUD: if not laid out yet, estimate lower than before
-    const top = boardTop > 0 && boardTop < viewH ? boardTop : 72;
+    // Fallback top is smaller now (header only, no top stats bar)
+    const top = boardTop > 0 && boardTop < viewH ? boardTop : 36;
     const gapBelow = mqLandscape ? 6 : 4;
-    // Leave a little room for collapsed help / safe area under pad
     const reserveBelow = Math.max(safeB, 4) + (mqLandscape ? 4 : 2);
     const maxH = Math.max(
-      220,
+      240,
       viewH - top - padH - gapBelow - reserveBelow
     );
 
     // Aspect 10×20 → width = height / 2
     const byHeight = maxH / 2;
-    const size = Math.floor(Math.max(160, Math.min(maxW, byHeight)));
+    const size = Math.floor(Math.max(168, Math.min(maxW, byHeight)));
     boardCanvas.style.width = size + "px";
     boardCanvas.style.height = size * 2 + "px";
   }

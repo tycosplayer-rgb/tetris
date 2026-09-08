@@ -1,3 +1,8 @@
+/*
+  Copyright (c) 2026 tycosplayer-rgb <326186931+tycosplayer-rgb@users.noreply.github.com>
+  SPDX-License-Identifier: MIT
+*/
+
 :root {
   --bg: #0b0e14;
   --panel: #12161f;
@@ -10,8 +15,9 @@
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   --radius: 14px;
   --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  /* Approximate chrome above/below the board on phone (header+slim hud+compact pad) */
-  --mobile-chrome: 210px;
+  /* Chrome without top HUD: compact header + pad + gaps */
+  --mobile-chrome: 150px;
+  --hud-rail-width: 168px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -42,28 +48,27 @@ body {
 }
 
 body {
-  /* Avoid rubber-band overscroll stealing game gestures on some browsers */
   overscroll-behavior-y: contain;
 }
 
 .app {
-  max-width: 960px;
+  max-width: 920px;
   margin: 0 auto;
   padding:
-    max(16px, var(--safe-top))
+    max(12px, var(--safe-top))
     max(16px, var(--safe-right))
-    max(24px, calc(var(--safe-bottom) + 12px))
+    max(20px, calc(var(--safe-bottom) + 10px))
     max(16px, var(--safe-left));
 }
 
 .header {
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: 1.55rem;
+  font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -74,63 +79,84 @@ body {
   font-size: 0.85em;
 }
 
+/* Desktop: large play area left/center, vertical HUD rail on the right */
 .main {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) var(--hud-rail-width);
+  grid-template-areas:
+    "play hud"
+    "pad  hud"
+    "help help";
+  gap: 14px 16px;
   align-items: start;
-  justify-items: center;
 }
 
-.panel {
+.play-area {
+  grid-area: play;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
   width: 100%;
-  max-width: 220px;
+}
+
+.hud-rail {
+  grid-area: hud;
+  width: var(--hud-rail-width);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  align-self: stretch;
 }
 
-.left-panel {
-  justify-self: end;
-}
-
-.right-panel {
-  justify-self: start;
-}
-
-.stats-row {
+.control-pad-wrap {
+  grid-area: pad;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+}
+
+.help-mobile {
+  grid-area: help;
+}
+
+.stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .stat-card {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 12px 14px;
   box-shadow: var(--shadow);
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted);
-  text-transform: none;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .stat-value {
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
+  line-height: 1.15;
 }
 
 .next-card {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 10px 12px;
 }
 
 #next {
@@ -139,12 +165,13 @@ body {
   border-radius: 8px;
   max-width: 100%;
   height: auto;
+  width: 96px;
 }
 
 .action-btns {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
 }
 
@@ -152,15 +179,15 @@ body {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
-  padding: 14px 16px;
-  font-size: 0.8rem;
+  padding: 12px 14px;
+  font-size: 0.75rem;
   color: var(--muted);
   box-shadow: var(--shadow);
 }
 
 .help h3 {
-  margin: 0 0 10px;
-  font-size: 0.85rem;
+  margin: 0 0 8px;
+  font-size: 0.8rem;
   color: var(--text);
 }
 
@@ -171,8 +198,8 @@ body {
 }
 
 .help li {
-  margin-bottom: 6px;
-  line-height: 1.4;
+  margin-bottom: 5px;
+  line-height: 1.35;
 }
 
 .help-mobile {
@@ -212,7 +239,7 @@ kbd {
   min-width: 1.4em;
   padding: 1px 5px;
   margin: 0 1px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-family: inherit;
   background: #1a2030;
   border: 1px solid #2a3348;
@@ -221,22 +248,12 @@ kbd {
   text-align: center;
 }
 
-.board-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 380px;
-}
-
 .board-wrap {
   position: relative;
   border-radius: 12px;
   padding: 6px;
   background: linear-gradient(145deg, #1e2a44, #121820);
   box-shadow: var(--shadow), 0 0 0 1px #2a3550;
-  /* Keep wrap sized to canvas display size */
   width: fit-content;
   max-width: 100%;
 }
@@ -246,8 +263,8 @@ kbd {
   background: #06080c;
   border-radius: 8px;
   image-rendering: pixelated;
-  /* Intrinsic 300×600; CSS scales display while keeping 10×20 */
-  width: 340px;
+  /* Larger default board — more of the freed width/height */
+  width: 360px;
   max-width: 100%;
   height: auto;
   aspect-ratio: 10 / 20;
@@ -296,10 +313,10 @@ kbd {
   border: none;
   cursor: pointer;
   width: 100%;
-  padding: 10px 16px;
+  padding: 10px 14px;
   border-radius: 10px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #fff;
   background: var(--accent);
@@ -322,14 +339,6 @@ kbd {
 
 .btn-secondary:hover {
   background: #3a4660;
-}
-
-/* On-screen control pad */
-.control-pad-wrap {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .pad-toolbar {
@@ -409,7 +418,6 @@ kbd {
   transition: background 0.12s ease, transform 0.08s ease, border-color 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  /* Reduce double-tap zoom / callout on iOS */
   -webkit-touch-callout: none;
   user-select: none;
 }
@@ -462,83 +470,65 @@ kbd {
 }
 
 .footer {
-  margin-top: 18px;
+  margin-top: 16px;
   text-align: center;
   color: var(--muted);
   font-size: 0.75rem;
 }
 
-/* ========== Tablet / narrow desktop: slim HUD + big board ========== */
+/* ========== Mobile / tablet portrait: board left, slim right rail ========== */
 @media (max-width: 800px) {
   :root {
-    --mobile-chrome: 200px;
+    --mobile-chrome: 140px;
+    --hud-rail-width: 88px;
     --radius: 10px;
   }
 
   .app {
     padding:
-      max(8px, var(--safe-top))
-      max(8px, var(--safe-right))
-      max(8px, calc(var(--safe-bottom) + 4px))
-      max(8px, var(--safe-left));
+      max(6px, var(--safe-top))
+      max(6px, var(--safe-right))
+      max(6px, calc(var(--safe-bottom) + 4px))
+      max(6px, var(--safe-left));
   }
 
   .header {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   .header h1 {
-    font-size: 1.05rem;
+    font-size: 0.98rem;
     line-height: 1.2;
-  }
-
-  .header .en {
-    font-size: 0.8em;
   }
 
   .hide-narrow {
     display: none;
   }
 
-  /* One thin HUD row: stats | next + actions, then board */
   .main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    justify-items: stretch;
-    gap: 6px 8px;
+    grid-template-columns: minmax(0, 1fr) var(--hud-rail-width);
+    grid-template-areas:
+      "play hud"
+      "pad  pad"
+      "help help";
+    gap: 6px 6px;
     align-items: stretch;
   }
 
-  .left-panel {
-    grid-column: 1;
-    grid-row: 1;
-    order: 1;
-    justify-self: stretch;
-    max-width: none;
-    width: 100%;
-    gap: 0;
+  .play-area {
+    justify-content: center;
+    align-items: flex-start;
   }
 
-  .right-panel {
-    grid-column: 2;
-    grid-row: 1;
-    order: 1;
-    justify-self: stretch;
-    max-width: none;
-    width: auto;
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
-    gap: 6px;
+  .hud-rail {
+    width: var(--hud-rail-width);
+    gap: 5px;
+    justify-content: flex-start;
   }
 
-  .board-column {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    order: 2;
+  .control-pad-wrap {
     max-width: none;
-    width: 100%;
-    gap: 6px;
+    margin: 0;
   }
 
   .help-desktop {
@@ -547,9 +537,6 @@ kbd {
 
   .help-mobile {
     display: block;
-    grid-column: 1 / -1;
-    grid-row: 3;
-    order: 3;
     padding: 6px 10px;
     font-size: 0.72rem;
   }
@@ -558,26 +545,19 @@ kbd {
     margin: 6px 0 0;
   }
 
-  /* Compact horizontal stats */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+  .stats-col {
     gap: 4px;
-    height: 100%;
   }
 
   .stat-card {
-    padding: 4px 4px;
+    padding: 5px 4px;
     text-align: center;
     border-radius: 8px;
     box-shadow: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
   }
 
   .stat-label {
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     margin-bottom: 1px;
     letter-spacing: 0;
     white-space: nowrap;
@@ -586,44 +566,33 @@ kbd {
   }
 
   .stat-value {
-    font-size: 0.95rem;
-    line-height: 1.15;
+    font-size: 0.92rem;
+    line-height: 1.1;
   }
 
   .next-card {
-    padding: 4px 6px;
-    flex-direction: column;
+    padding: 4px 3px;
     gap: 2px;
-    align-items: center;
-    justify-content: center;
-    box-shadow: none;
-    border-radius: 8px;
-    min-width: 52px;
   }
 
   .next-card .stat-label {
     margin-bottom: 0;
-    font-size: 0.55rem;
   }
 
   #next {
-    width: 40px;
-    height: 40px;
+    width: 52px;
+    height: 52px;
     margin-top: 0;
   }
 
   .action-btns {
-    flex-direction: column;
-    justify-content: center;
     gap: 4px;
-    width: auto;
-    min-width: 64px;
   }
 
   .action-btns .btn {
-    min-height: 28px;
-    padding: 4px 8px;
-    font-size: 0.72rem;
+    min-height: 32px;
+    padding: 5px 4px;
+    font-size: 0.68rem;
     border-radius: 8px;
   }
 
@@ -633,11 +602,10 @@ kbd {
     border-radius: 10px;
   }
 
-  /* Board: use most of remaining viewport height */
   #board {
     width: min(
       100%,
-      360px,
+      380px,
       calc((100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom)) / 2)
     );
     max-height: calc(100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom));
@@ -675,64 +643,56 @@ kbd {
   }
 }
 
-/* Phones ~375–430px: board dominates */
+/* Phones ~375–430px */
 @media (max-width: 480px) {
   :root {
-    --mobile-chrome: 185px;
+    --mobile-chrome: 128px;
+    --hud-rail-width: 76px;
   }
 
   .header {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .header h1 {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
 
   .main {
-    gap: 5px 6px;
+    gap: 5px 5px;
   }
 
-  .stats-row {
+  .stats-col {
     gap: 3px;
   }
 
   .stat-card {
-    padding: 3px 2px;
+    padding: 4px 2px;
   }
 
   .stat-label {
-    font-size: 0.52rem;
+    font-size: 0.5rem;
   }
 
   .stat-value {
-    font-size: 0.88rem;
+    font-size: 0.82rem;
   }
 
   #next {
-    width: 36px;
-    height: 36px;
-  }
-
-  .action-btns {
-    min-width: 56px;
+    width: 44px;
+    height: 44px;
   }
 
   .action-btns .btn {
-    min-height: 26px;
-    padding: 3px 6px;
-    font-size: 0.68rem;
-  }
-
-  .board-column {
-    max-width: 100%;
-    gap: 5px;
+    min-height: 30px;
+    padding: 4px 2px;
+    font-size: 0.62rem;
   }
 
   #board {
     width: min(
-      calc(100vw - 16px - var(--safe-left) - var(--safe-right)),
-      360px,
+      calc(100vw - var(--hud-rail-width) - 18px - var(--safe-left) - var(--safe-right)),
+      380px,
       calc((100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom)) / 2)
     );
   }
@@ -745,7 +705,6 @@ kbd {
   .pad-btn {
     min-height: 40px;
     font-size: 0.8rem;
-    border-radius: 10px;
   }
 
   .help-mobile {
@@ -753,10 +712,10 @@ kbd {
   }
 }
 
-/* Very short phones / split-screen: shrink chrome budget further */
+/* Short portrait viewports */
 @media (max-width: 800px) and (max-height: 700px) {
   :root {
-    --mobile-chrome: 165px;
+    --mobile-chrome: 118px;
   }
 
   .header {
@@ -764,7 +723,7 @@ kbd {
   }
 
   .header h1 {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   .pad-btn {
@@ -777,15 +736,20 @@ kbd {
   }
 
   #next {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-btns .btn {
+    min-height: 28px;
   }
 }
 
 /* ========== Landscape phones / short landscape ========== */
 @media (max-width: 960px) and (orientation: landscape) {
   :root {
-    --mobile-chrome: 56px;
+    --mobile-chrome: 48px;
+    --hud-rail-width: 120px;
   }
 
   .app {
@@ -797,52 +761,20 @@ kbd {
   }
 
   .header {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .header h1 {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
 
   .main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) var(--hud-rail-width);
+    grid-template-areas:
+      "play hud"
+      "pad  hud";
     gap: 6px 10px;
     align-items: start;
-    justify-items: stretch;
-  }
-
-  .board-column {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    order: 0;
-    max-width: none;
-    height: 100%;
-    justify-content: flex-start;
-    gap: 6px;
-  }
-
-  .left-panel {
-    grid-column: 2;
-    grid-row: 1;
-    order: 0;
-    max-width: none;
-    justify-self: stretch;
-    width: 100%;
-    gap: 6px;
-  }
-
-  .right-panel {
-    grid-column: 2;
-    grid-row: 2;
-    order: 0;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-    justify-self: stretch;
-    width: 100%;
-    gap: 6px;
   }
 
   .help-desktop {
@@ -850,39 +782,34 @@ kbd {
   }
 
   .help-mobile {
-    display: block;
-    grid-column: 2;
-    grid-row: 3;
-    padding: 6px 10px;
-    font-size: 0.7rem;
+    display: none;
   }
 
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+  .hud-rail {
+    gap: 6px;
+  }
+
+  .stats-col {
     gap: 4px;
   }
 
   .stat-card {
-    padding: 4px 4px;
+    padding: 4px 6px;
     text-align: center;
     box-shadow: none;
   }
 
   .stat-label {
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     margin-bottom: 1px;
   }
 
   .stat-value {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
 
   .next-card {
-    flex-direction: row;
-    gap: 8px;
-    padding: 4px 8px;
-    box-shadow: none;
+    padding: 4px 6px;
   }
 
   #next {
@@ -891,22 +818,21 @@ kbd {
     margin-top: 0;
   }
 
-  .action-btns {
-    flex-direction: row;
-  }
-
   .action-btns .btn {
-    min-height: 36px;
-    padding: 6px 10px;
-    font-size: 0.8rem;
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: 0.72rem;
   }
 
-  /* Board height-limited in landscape — use more of viewport */
+  .control-pad-wrap {
+    max-width: none;
+  }
+
   #board {
     width: min(
       100%,
-      300px,
-      calc((100dvh - 36px - var(--safe-top) - var(--safe-bottom)) / 2)
+      280px,
+      calc((100dvh - 32px - var(--safe-top) - var(--safe-bottom)) / 2)
     );
   }
 
@@ -921,8 +847,8 @@ kbd {
   }
 
   .pad-btn {
-    min-height: 40px;
-    font-size: 0.8rem;
+    min-height: 38px;
+    font-size: 0.78rem;
   }
 
   .footer {
@@ -930,10 +856,10 @@ kbd {
   }
 }
 
-/* Landscape with enough width: keep pad usable beside board */
+/* Wider landscape: larger board + usable pad */
 @media (min-width: 700px) and (max-width: 960px) and (orientation: landscape) {
-  .main {
-    grid-template-columns: auto minmax(260px, 1fr);
+  :root {
+    --hud-rail-width: 132px;
   }
 
   #board {
