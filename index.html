@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>俄罗斯方块 · Tetris</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>俄罗斯方块 <span class="en">Tetris</span></h1>
+    </header>
+
+    <main class="main">
+      <aside class="panel left-panel">
+        <div class="stat-card">
+          <div class="stat-label">分数 / Score</div>
+          <div class="stat-value" id="score">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">等级 / Level</div>
+          <div class="stat-value" id="level">1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">消行 / Lines</div>
+          <div class="stat-value" id="lines">0</div>
+        </div>
+        <div class="help">
+          <h3>操作 / Controls</h3>
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 左右移动</li>
+            <li><kbd>↓</kbd> / <kbd>S</kbd> 软降</li>
+            <li><kbd>↑</kbd> / <kbd>X</kbd> / <kbd>W</kbd> 顺时针旋转</li>
+            <li><kbd>Z</kbd> 逆时针旋转</li>
+            <li><kbd>Space</kbd> 硬降</li>
+            <li><kbd>P</kbd> 暂停</li>
+            <li><kbd>R</kbd> 重新开始</li>
+          </ul>
+        </div>
+      </aside>
+
+      <section class="board-column">
+        <div class="board-wrap">
+          <canvas id="board" width="300" height="600" aria-label="游戏板"></canvas>
+          <div id="overlay" class="overlay hidden">
+            <div class="overlay-card">
+              <h2 id="overlay-title">暂停</h2>
+              <p id="overlay-msg">按 P 继续</p>
+              <button type="button" id="btn-restart" class="btn">重新开始</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-pad" id="control-pad" aria-label="触控操作">
+          <div class="pad-row pad-rotate">
+            <button type="button" class="pad-btn" data-action="ccw" aria-label="逆旋">逆旋</button>
+            <button type="button" class="pad-btn" data-action="cw" aria-label="顺旋">顺旋</button>
+            <button type="button" class="pad-btn pad-hard" data-action="hard" aria-label="硬降">硬降</button>
+          </div>
+          <div class="pad-row pad-move">
+            <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">← 左移</button>
+            <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓ 软降</button>
+            <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">右移 →</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel right-panel">
+        <div class="stat-card next-card">
+          <div class="stat-label">下一个 / Next</div>
+          <canvas id="next" width="120" height="120"></canvas>
+        </div>
+        <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
+        <button type="button" id="btn-restart-side" class="btn">重新开始</button>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      Classic 10×20 · 七种方块 · 消行升级加速
+    </footer>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
