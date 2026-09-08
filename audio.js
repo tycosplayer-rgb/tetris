@@ -4,10 +4,10 @@
 */
 
 /**
- * Procedural game audio via Web Audio API (no binary assets).
+ * Game audio: procedural SFX (Web Audio API) + file-based CC0 BGM (HTMLAudioElement).
  * Exposes window.TetrisAudio for game.js / UI toggles.
  *
- * BGM: 10 distinct chiptune-style sequenced tracks (oscillators only).
+ * BGM: 10 CC0 loops under music/01.ogg … music/10.ogg (see music/CREDITS.md).
  * Short-press cycles track; long-press toggles mute (handled in game.js).
  */
 (() => {
@@ -17,181 +17,41 @@
   const BGM_KEY = "tetris-bgm-enabled";
   const BGM_TRACK_KEY = "tetris-bgm-track";
 
+  // Capture script base at load time (document.currentScript is null later).
+  const SCRIPT_BASE = (function () {
+    try {
+      if (document.currentScript && document.currentScript.src) {
+        return document.currentScript.src;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return window.location.href;
+  })();
+
+  /** Resolve music path relative to this script / page. */
+  function musicUrl(file) {
+    try {
+      return new URL("music/" + file, SCRIPT_BASE).href;
+    } catch (_) {
+      return "music/" + file;
+    }
+  }
+
   /**
-   * 10 procedural BGM presets — audibly different tempo / scale / wave / pattern.
-   * Chinese display names for UI title attributes.
+   * 10 CC0 BGM tracks — display names match music/CREDITS.md.
    */
   const BGM_TRACKS = [
-    {
-      // 1 轻快 — bright major pentatonic, brisk square
-      name: "轻快",
-      stepMs: 240,
-      volume: 0.045,
-      wave: "square",
-      wave2: "triangle",
-      notes: [
-        261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 349.23, 440.0,
-        349.23, 261.63, 329.63, 392.0, 329.63, 246.94, 311.13,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 2,
-      harmonyGain: 0.22,
-      melGain: 0.55,
-      noteDur: 0.2,
-    },
-    {
-      // 2 沉稳 — calm low triangle, slower
-      name: "沉稳",
-      stepMs: 380,
-      volume: 0.04,
-      wave: "triangle",
-      wave2: "sine",
-      notes: [
-        146.83, 174.61, 196.0, 174.61, 130.81, 164.81, 196.0, 164.81, 110.0,
-        146.83, 174.61, 146.83, 98.0, 123.47, 146.83, 123.47,
-      ],
-      bassEvery: 8,
-      harmonyOctave: 1.5,
-      harmonyGain: 0.18,
-      melGain: 0.5,
-      noteDur: 0.32,
-    },
-    {
-      // 3 电子 — minor techno pulse, sawtooth
-      name: "电子",
-      stepMs: 200,
-      volume: 0.042,
-      wave: "sawtooth",
-      wave2: "square",
-      notes: [
-        220.0, 233.08, 261.63, 293.66, 261.63, 233.08, 196.0, 220.0, 246.94,
-        277.18, 246.94, 220.0, 185.0, 207.65, 233.08, 207.65,
-      ],
-      bassEvery: 2,
-      harmonyOctave: 0.5,
-      harmonyGain: 0.28,
-      melGain: 0.42,
-      noteDur: 0.14,
-    },
-    {
-      // 4 像素 — classic 8-bit square arpeggio
-      name: "像素",
-      stepMs: 160,
-      volume: 0.048,
-      wave: "square",
-      wave2: "square",
-      notes: [
-        523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 587.33, 698.46, 880.0,
-        698.46, 523.25, 659.25, 783.99, 659.25, 493.88, 622.25,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 0.5,
-      harmonyGain: 0.2,
-      melGain: 0.5,
-      noteDur: 0.12,
-    },
-    {
-      // 5 梦幻 — sparse ambient sine pads
-      name: "梦幻",
-      stepMs: 420,
-      volume: 0.038,
-      wave: "sine",
-      wave2: "triangle",
-      notes: [
-        196.0, 0, 246.94, 0, 293.66, 0, 369.99, 293.66, 246.94, 0, 220.0, 0,
-        174.61, 0, 220.0, 261.63,
-      ],
-      bassEvery: 8,
-      harmonyOctave: 2,
-      harmonyGain: 0.3,
-      melGain: 0.48,
-      noteDur: 0.45,
-    },
-    {
-      // 6 紧张 — fast tense intervals, saw
-      name: "紧张",
-      stepMs: 150,
-      volume: 0.04,
-      wave: "sawtooth",
-      wave2: "triangle",
-      notes: [
-        311.13, 329.63, 349.23, 369.99, 392.0, 369.99, 349.23, 329.63, 277.18,
-        293.66, 311.13, 329.63, 233.08, 246.94, 261.63, 277.18,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 1.5,
-      harmonyGain: 0.15,
-      melGain: 0.4,
-      noteDur: 0.1,
-    },
-    {
-      // 7 古典 — flowing major arpeggio, soft triangle
-      name: "古典",
-      stepMs: 300,
-      volume: 0.042,
-      wave: "triangle",
-      wave2: "sine",
-      notes: [
-        261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 349.23, 440.0,
-        523.25, 440.0, 349.23, 246.94, 311.13, 369.99, 493.88,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 0.5,
-      harmonyGain: 0.25,
-      melGain: 0.52,
-      noteDur: 0.26,
-    },
-    {
-      // 8 夜行 — bluesy night stroll, low + soft square
-      name: "夜行",
-      stepMs: 340,
-      volume: 0.04,
-      wave: "triangle",
-      wave2: "square",
-      notes: [
-        146.83, 174.61, 185.0, 196.0, 185.0, 174.61, 130.81, 155.56, 174.61,
-        185.0, 174.61, 146.83, 110.0, 130.81, 146.83, 155.56,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 2,
-      harmonyGain: 0.12,
-      melGain: 0.48,
-      noteDur: 0.28,
-    },
-    {
-      // 9 赛博 — syncopated cyber pulse
-      name: "赛博",
-      stepMs: 180,
-      volume: 0.043,
-      wave: "square",
-      wave2: "sawtooth",
-      notes: [
-        277.18, 0, 349.23, 415.3, 0, 349.23, 277.18, 311.13, 0, 369.99, 466.16,
-        0, 233.08, 277.18, 349.23, 415.3,
-      ],
-      bassEvery: 2,
-      harmonyOctave: 0.5,
-      harmonyGain: 0.22,
-      melGain: 0.45,
-      noteDur: 0.11,
-    },
-    {
-      // 10 田园 — pastoral folk pentatonic, gentle
-      name: "田园",
-      stepMs: 320,
-      volume: 0.04,
-      wave: "triangle",
-      wave2: "sine",
-      notes: [
-        196.0, 220.0, 261.63, 293.66, 261.63, 220.0, 174.61, 196.0, 246.94,
-        293.66, 246.94, 196.0, 146.83, 174.61, 220.0, 261.63,
-      ],
-      bassEvery: 4,
-      harmonyOctave: 2,
-      harmonyGain: 0.2,
-      melGain: 0.5,
-      noteDur: 0.28,
-    },
+    { name: "轻快", file: "01.ogg", volume: 0.45 },
+    { name: "沉稳", file: "02.ogg", volume: 0.45 },
+    { name: "电子", file: "03.ogg", volume: 0.4 },
+    { name: "像素", file: "04.ogg", volume: 0.42 },
+    { name: "梦幻", file: "05.ogg", volume: 0.48 },
+    { name: "紧张", file: "06.ogg", volume: 0.4 },
+    { name: "探索", file: "07.ogg", volume: 0.42 },
+    { name: "夜行", file: "08.ogg", volume: 0.45 },
+    { name: "赛博", file: "09.ogg", volume: 0.4 },
+    { name: "田园", file: "10.ogg", volume: 0.48 },
   ];
 
   function readFlag(key, fallback) {
@@ -242,20 +102,17 @@
   let ctx = null;
   let masterGain = null;
   let sfxGain = null;
-  let bgmGain = null;
   let unlocked = false;
-  let bgmPlaying = false;
-  let bgmTimer = null;
-  let bgmStep = 0;
   let gameActive = true; // running && !paused && !gameOver
   let lastSoftAt = 0;
 
+  /** @type {HTMLAudioElement|null} */
+  let bgmAudio = null;
+  let bgmWantPlay = false;
+  let bgmLoadError = false;
+
   function currentTrack() {
     return BGM_TRACKS[bgmTrack] || BGM_TRACKS[0];
-  }
-
-  function bgmVolumeTarget() {
-    return currentTrack().volume || 0.045;
   }
 
   function ensureContext() {
@@ -270,20 +127,134 @@
     sfxGain = ctx.createGain();
     sfxGain.gain.value = sfxEnabled ? 0.85 : 0;
     sfxGain.connect(masterGain);
-
-    bgmGain = ctx.createGain();
-    bgmGain.gain.value = 0;
-    bgmGain.connect(masterGain);
     return ctx;
+  }
+
+  function ensureBgmElement() {
+    if (bgmAudio) return bgmAudio;
+    const a = new Audio();
+    a.loop = true;
+    a.preload = "auto";
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
+    a.addEventListener("error", () => {
+      bgmLoadError = true;
+      try {
+        console.warn(
+          "[TetrisAudio] BGM failed to load:",
+          currentTrack().file,
+          a.error && a.error.message
+        );
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    a.addEventListener("canplay", () => {
+      bgmLoadError = false;
+    });
+    bgmAudio = a;
+    loadCurrentTrackSrc(false);
+    return a;
+  }
+
+  function loadCurrentTrackSrc(autoPlay) {
+    const a = ensureBgmElement();
+    const tr = currentTrack();
+    const url = musicUrl(tr.file);
+    bgmLoadError = false;
+    a.loop = true;
+    a.volume = tr.volume != null ? tr.volume : 0.45;
+    const already = a.src && a.src.indexOf("/" + tr.file) !== -1;
+    if (!already) {
+      try {
+        a.pause();
+      } catch (_) {
+        /* ignore */
+      }
+      a.src = url;
+      try {
+        a.load();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    try {
+      a.currentTime = 0;
+    } catch (_) {
+      /* ignore */
+    }
+    if (autoPlay) {
+      playBgmElement();
+    }
+  }
+
+  function playBgmElement() {
+    if (!bgmEnabled || !unlocked || !gameActive) return;
+    const a = ensureBgmElement();
+    a.loop = true;
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
+    bgmWantPlay = true;
+    const p = a.play();
+    if (p && typeof p.then === "function") {
+      p.catch((err) => {
+        try {
+          console.warn("[TetrisAudio] BGM play blocked/failed:", err && err.message);
+        } catch (_) {
+          /* ignore */
+        }
+      });
+    }
+  }
+
+  function pauseBgmElement(reset) {
+    bgmWantPlay = false;
+    if (!bgmAudio) return;
+    try {
+      bgmAudio.pause();
+    } catch (_) {
+      /* ignore */
+    }
+    if (reset) {
+      try {
+        bgmAudio.currentTime = 0;
+      } catch (_) {
+        /* ignore */
+      }
+    }
   }
 
   function unlock() {
     const c = ensureContext();
-    if (!c) return Promise.resolve(false);
-    const p = c.state === "suspended" ? c.resume() : Promise.resolve();
-    return p
+    ensureBgmElement();
+    const resumeCtx =
+      c && c.state === "suspended"
+        ? c.resume().catch(() => {})
+        : Promise.resolve();
+    return resumeCtx
       .then(() => {
         unlocked = true;
+        // Soft-unlock HTMLAudio with a muted play/pause if needed
+        if (bgmAudio && bgmEnabled && gameActive) {
+          playBgmElement();
+        } else if (bgmAudio) {
+          // Prime element for later (some browsers need a play gesture)
+          const wasMuted = bgmAudio.muted;
+          bgmAudio.muted = true;
+          const p = bgmAudio.play();
+          const finish = () => {
+            try {
+              bgmAudio.pause();
+              bgmAudio.currentTime = 0;
+            } catch (_) {
+              /* ignore */
+            }
+            bgmAudio.muted = wasMuted;
+          };
+          if (p && typeof p.then === "function") {
+            p.then(finish).catch(finish);
+          } else {
+            finish();
+          }
+        }
         syncBgm();
         return true;
       })
@@ -402,80 +373,14 @@
     }
   }
 
-  function clearBgmTimer() {
-    if (bgmTimer != null) {
-      clearInterval(bgmTimer);
-      bgmTimer = null;
-    }
-  }
-
-  function scheduleBgmNote() {
-    if (!ctx || !bgmPlaying || !bgmEnabled) return;
-    const tr = currentTrack();
-    const notes = tr.notes;
-    const freq = notes[bgmStep % notes.length];
-    bgmStep++;
-    if (!freq) return; // rest
-    const t = ctx.currentTime;
-    const dur = tr.noteDur || 0.2;
-    const mel = tr.melGain != null ? tr.melGain : 0.55;
-    const harm = tr.harmonyGain != null ? tr.harmonyGain : 0.22;
-    const oct = tr.harmonyOctave != null ? tr.harmonyOctave : 2;
-    tone(freq, dur, tr.wave || "square", bgmGain, t, mel, 0.01, dur * 0.45);
-    if (oct && harm > 0) {
-      tone(freq * oct, dur * 0.85, tr.wave2 || "triangle", bgmGain, t + 0.01, harm, 0.01, dur * 0.4);
-    }
-    const every = tr.bassEvery || 4;
-    if (bgmStep % every === 1) {
-      tone(freq / 2, dur * 1.35, "triangle", bgmGain, t, Math.min(0.4, mel * 0.65), 0.02, dur * 0.5);
-    }
-  }
-
-  function fadeBgm(to, ms) {
-    if (!ctx || !bgmGain) return;
-    const now = ctx.currentTime;
-    const sec = Math.max(0.02, (ms || 180) / 1000);
-    bgmGain.gain.cancelScheduledValues(now);
-    bgmGain.gain.setValueAtTime(Math.max(0.0001, bgmGain.gain.value), now);
-    bgmGain.gain.linearRampToValueAtTime(Math.max(0.0001, to), now + sec);
-  }
-
   function startBgm() {
-    const c = ensureContext();
-    if (!c || !unlocked || !bgmEnabled || !gameActive) return;
-    if (c.state === "suspended") {
-      c.resume().catch(() => {});
-    }
-    if (!bgmPlaying) {
-      bgmPlaying = true;
-      bgmStep = 0;
-      clearBgmTimer();
-      scheduleBgmNote();
-      bgmTimer = setInterval(scheduleBgmNote, currentTrack().stepMs || 280);
-    }
-    fadeBgm(bgmVolumeTarget(), 220);
+    if (!unlocked || !bgmEnabled || !gameActive) return;
+    ensureBgmElement();
+    playBgmElement();
   }
 
   function stopBgm(immediate) {
-    clearBgmTimer();
-    bgmPlaying = false;
-    if (!bgmGain || !ctx) return;
-    if (immediate) {
-      const now = ctx.currentTime;
-      bgmGain.gain.cancelScheduledValues(now);
-      bgmGain.gain.setValueAtTime(0.0001, now);
-    } else {
-      fadeBgm(0.0001, 160);
-    }
-  }
-
-  function restartBgmIfPlaying() {
-    if (!bgmEnabled || !unlocked || !gameActive) return;
-    const was = bgmPlaying;
-    stopBgm(true);
-    if (was || (bgmEnabled && gameActive)) {
-      startBgm();
-    }
+    pauseBgmElement(!!immediate);
   }
 
   function syncBgm() {
@@ -508,8 +413,11 @@
     const changed = idx !== bgmTrack;
     bgmTrack = idx;
     writeTrackIndex(bgmTrack);
-    if (changed && bgmEnabled && bgmPlaying) {
-      restartBgmIfPlaying();
+    if (changed) {
+      loadCurrentTrackSrc(false);
+      if (bgmEnabled && unlocked && gameActive) {
+        playBgmElement();
+      }
     }
     return bgmTrack;
   }
@@ -533,6 +441,7 @@
       number: bgmTrack + 1,
       name: tr.name,
       count: BGM_TRACKS.length,
+      file: tr.file,
     };
   }
 
@@ -550,12 +459,19 @@
     window.addEventListener(ev, onFirstGesture, gestureOpts);
   });
 
+  // Resume BGM if tab becomes visible again while game is active
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && bgmWantPlay) {
+      syncBgm();
+    }
+  });
+
   window.TetrisAudio = {
     SFX_KEY,
     BGM_KEY,
     BGM_TRACK_KEY,
     BGM_TRACK_COUNT: BGM_TRACKS.length,
-    TRACKS: BGM_TRACKS.map((t, i) => ({ index: i, name: t.name })),
+    TRACKS: BGM_TRACKS.map((t, i) => ({ index: i, name: t.name, file: t.file })),
     unlock,
     play: playSfx,
     isSfxEnabled: () => sfxEnabled,

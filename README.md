@@ -53,20 +53,22 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 - Ghost piece, pause, game over + restart
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
-- Procedural SFX + looping BGM (Web Audio API; no audio files)
-- Right-rail **音效** toggle + **音乐** (10 procedural tracks: short tap cycles, long press mutes) persisted in `localStorage`
+- Procedural SFX (Web Audio API) + **CC0 real-audio BGM** loops under `music/`
+- Right-rail **音效** toggle + **音乐** (10 CC0 tracks: short tap cycles, long press mutes) persisted in `localStorage`
 
 ## Files
 
 - `index.html` — page structure
 - `style.css` — dark modern UI + responsive breakpoints
 - `game.js` — game logic, rendering, touch pad, board fit
-- `audio.js` — Web Audio procedural SFX / BGM + preference helpers
+- `audio.js` — procedural SFX + HTMLAudio BGM + preference helpers
+- `music/` — 10 CC0 OGG loops (`01.ogg`…`10.ogg`) + [`music/CREDITS.md`](music/CREDITS.md)
 - `LICENSE` — MIT License
 
 ## Audio
 
-Sound effects and background music are generated in the browser with the **Web Audio API** (no binary assets, no copyrighted tracks). Ten distinct procedural BGM tracks (chiptune oscillators / sequenced notes).
+- **SFX** — generated in the browser with the **Web Audio API** (procedural; no SFX files).
+- **BGM** — 10 real **CC0 / public-domain** audio loops (`music/01.ogg` … `music/10.ogg`). Full titles, authors, and source URLs are in [`music/CREDITS.md`](music/CREDITS.md).
 
 | Control | localStorage key | Default |
 |---------|------------------|---------|
@@ -79,9 +81,9 @@ Sound effects and background music are generated in the browser with the **Web A
 - **Short tap** — cycle track `1→2→…→10→1`. If music is on, the new track starts immediately; if off, only the selection changes.
 - **Long press** (~520ms) — toggle music on/off. Cancelled if the pointer moves too far.
 
-Track names: 轻快 / 沉稳 / 电子 / 像素 / 梦幻 / 紧张 / 古典 / 夜行 / 赛博 / 田园.
+Track names: 轻快 / 沉稳 / 电子 / 像素 / 梦幻 / 紧张 / 探索 / 夜行 / 赛博 / 田园.
 
-SFX stays a simple click toggle. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext unlocks on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
+SFX stays a simple click toggle. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext + HTMLAudio unlock on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
 
 ## License
 
