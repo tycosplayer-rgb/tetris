@@ -633,7 +633,7 @@
     running = false;
     paused = false;
     btnPause.textContent = "暂停";
-    showOverlay("游戏结束", "Game Over — 按 R 或点击重新开始", true);
+    showOverlay("游戏结束", "Game Over — 点击重新开始", true);
     drawBoard();
   }
 
@@ -642,7 +642,7 @@
     paused = !paused;
     if (paused) {
       btnPause.textContent = "继续";
-      showOverlay("暂停", "按 P 继续 / Press P to resume", false);
+      showOverlay("暂停", "点击继续或再次暂停", false);
     } else {
       btnPause.textContent = "暂停";
       hideOverlay();
@@ -1039,6 +1039,81 @@
     btn.addEventListener("pointerup", () => btn.blur());
   });
 
+
+  // --- Responsive board sizing (CSS display size; canvas buffer stays 300×600) ---
+  function fitBoard() {
+    const wrap = boardCanvas && boardCanvas.parentElement;
+    const col = wrap && wrap.closest(".board-column");
+    if (!boardCanvas || !wrap || !col) return;
+
+    const mqNarrow = window.matchMedia("(max-width: 800px)").matches;
+    const mqLandscape = window.matchMedia(
+      "(max-width: 960px) and (orientation: landscape)"
+    ).matches;
+
+    // Desktop: fixed intrinsic size
+    if (!mqNarrow && !mqLandscape) {
+      boardCanvas.style.width = "";
+      boardCanvas.style.height = "";
+      return;
+    }
+
+    const vv = window.visualViewport;
+    const viewW = vv ? vv.width : window.innerWidth;
+    const viewH = vv ? vv.height : window.innerHeight;
+
+    const padWrap = col.querySelector(".control-pad-wrap");
+    const styles = getComputedStyle(document.documentElement);
+    const safeL = parseFloat(styles.getPropertyValue("--safe-left")) || 0;
+    const safeR = parseFloat(styles.getPropertyValue("--safe-right")) || 0;
+    const safeT = parseFloat(styles.getPropertyValue("--safe-top")) || 0;
+    const safeB = parseFloat(styles.getPropertyValue("--safe-bottom")) || 0;
+
+    // Horizontal room inside column / viewport
+    const colW = col.clientWidth || viewW;
+    const maxW = Math.min(300, colW - 4, viewW - safeL - safeR - 24);
+
+    // Vertical: leave room for pad + chrome above board
+    const padH = padWrap ? padWrap.getBoundingClientRect().height : 160;
+    const boardTop = wrap.getBoundingClientRect().top;
+    // If board is not yet laid out near top, estimate from viewport
+    const top = boardTop > 0 && boardTop < viewH ? boardTop : 120;
+    const gapBelow = 12;
+    const maxH = Math.max(
+      180,
+      viewH - top - padH - gapBelow - Math.max(safeB, 8)
+    );
+
+    // Aspect 10×20 → width = height / 2
+    const byHeight = maxH / 2;
+    const size = Math.floor(Math.max(140, Math.min(maxW, byHeight)));
+    boardCanvas.style.width = size + "px";
+    boardCanvas.style.height = size * 2 + "px";
+  }
+
+  let fitRaf = 0;
+  function scheduleFitBoard() {
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(() => {
+      fitRaf = 0;
+      fitBoard();
+    });
+  }
+
+  window.addEventListener("resize", scheduleFitBoard);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(scheduleFitBoard, 100);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleFitBoard);
+  }
+
   // boot
+  fitBoard();
   resetGame();
+  // Second pass after HUD/pad have final heights
+  requestAnimationFrame(() => {
+    fitBoard();
+    requestAnimationFrame(fitBoard);
+  });
 })();

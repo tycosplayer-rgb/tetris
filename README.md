@@ -36,6 +36,14 @@ Then visit http://localhost:8080/
 | P | Pause |
 | R | Restart |
 
+On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage`.
+
+## Mobile
+
+- Portrait-first layout: compact HUD, scaled 10×20 board, large touch targets
+- Landscape: board + controls side-by-side when space allows
+- Safe-area insets for notched devices; keyboard help collapses to a short tip on small screens
+
 ## Features
 
 - All 7 tetrominoes with standard colors
@@ -44,9 +52,10 @@ Then visit http://localhost:8080/
 - Level up every 10 lines; fall speed increases
 - Ghost piece, pause, game over + restart
 - Chinese UI labels
+- Editable on-screen pad layout (persisted)
 
 ## Files
 
 - `index.html` — page structure
-- `style.css` — dark modern UI
-- `game.js` — game logic & rendering
+- `style.css` — dark modern UI + responsive breakpoints
+- `game.js` — game logic, rendering, touch pad, board fit

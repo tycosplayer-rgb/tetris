@@ -2,7 +2,12 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#0b0e14" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>俄罗斯方块 · Tetris</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -14,19 +19,21 @@
 
     <main class="main">
       <aside class="panel left-panel">
-        <div class="stat-card">
-          <div class="stat-label">分数 / Score</div>
-          <div class="stat-value" id="score">0</div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">分数 / Score</div>
+            <div class="stat-value" id="score">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">等级 / Level</div>
+            <div class="stat-value" id="level">1</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">消行 / Lines</div>
+            <div class="stat-value" id="lines">0</div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">等级 / Level</div>
-          <div class="stat-value" id="level">1</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">消行 / Lines</div>
-          <div class="stat-value" id="lines">0</div>
-        </div>
-        <div class="help">
+        <div class="help help-desktop" aria-label="键盘操作">
           <h3>操作 / Controls</h3>
           <ul>
             <li><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 左右移动</li>
@@ -73,9 +80,16 @@
           <div class="stat-label">下一个 / Next</div>
           <canvas id="next" width="120" height="120"></canvas>
         </div>
-        <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
-        <button type="button" id="btn-restart-side" class="btn">重新开始</button>
+        <div class="action-btns">
+          <button type="button" id="btn-pause" class="btn btn-secondary">暂停</button>
+          <button type="button" id="btn-restart-side" class="btn">重新开始</button>
+        </div>
       </aside>
+
+      <details class="help help-mobile">
+        <summary>操作提示</summary>
+        <p class="touch-tip">使用触控板：左右移动、旋转、软降、硬降。可「编辑布局」拖动按钮。电脑可用键盘。</p>
+      </details>
     </main>
 
     <footer class="footer">
