@@ -1051,7 +1051,7 @@
       "(max-width: 960px) and (orientation: landscape)"
     ).matches;
 
-    // Desktop: fixed intrinsic size
+    // Desktop: CSS-driven size (larger default board)
     if (!mqNarrow && !mqLandscape) {
       boardCanvas.style.width = "";
       boardCanvas.style.height = "";
@@ -1066,27 +1066,29 @@
     const styles = getComputedStyle(document.documentElement);
     const safeL = parseFloat(styles.getPropertyValue("--safe-left")) || 0;
     const safeR = parseFloat(styles.getPropertyValue("--safe-right")) || 0;
-    const safeT = parseFloat(styles.getPropertyValue("--safe-top")) || 0;
     const safeB = parseFloat(styles.getPropertyValue("--safe-bottom")) || 0;
 
-    // Horizontal room inside column / viewport
+    // Horizontal room — allow up to ~360px so board can dominate tall phones
     const colW = col.clientWidth || viewW;
-    const maxW = Math.min(300, colW - 4, viewW - safeL - safeR - 24);
+    const sidePad = mqLandscape ? 16 : 12;
+    const maxW = Math.min(360, colW - 4, viewW - safeL - safeR - sidePad);
 
-    // Vertical: leave room for pad + chrome above board
-    const padH = padWrap ? padWrap.getBoundingClientRect().height : 160;
+    // Vertical: pad is compact; measure live so HUD shrinks free more height
+    const padH = padWrap ? padWrap.getBoundingClientRect().height : 110;
     const boardTop = wrap.getBoundingClientRect().top;
-    // If board is not yet laid out near top, estimate from viewport
-    const top = boardTop > 0 && boardTop < viewH ? boardTop : 120;
-    const gapBelow = 12;
+    // Slim HUD: if not laid out yet, estimate lower than before
+    const top = boardTop > 0 && boardTop < viewH ? boardTop : 72;
+    const gapBelow = mqLandscape ? 6 : 4;
+    // Leave a little room for collapsed help / safe area under pad
+    const reserveBelow = Math.max(safeB, 4) + (mqLandscape ? 4 : 2);
     const maxH = Math.max(
-      180,
-      viewH - top - padH - gapBelow - Math.max(safeB, 8)
+      220,
+      viewH - top - padH - gapBelow - reserveBelow
     );
 
     // Aspect 10×20 → width = height / 2
     const byHeight = maxH / 2;
-    const size = Math.floor(Math.max(140, Math.min(maxW, byHeight)));
+    const size = Math.floor(Math.max(160, Math.min(maxW, byHeight)));
     boardCanvas.style.width = size + "px";
     boardCanvas.style.height = size * 2 + "px";
   }

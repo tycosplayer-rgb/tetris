@@ -14,22 +14,22 @@
 <body>
   <div class="app">
     <header class="header">
-      <h1>俄罗斯方块 <span class="en">Tetris</span></h1>
+      <h1>俄罗斯方块 <span class="en hide-narrow">Tetris</span></h1>
     </header>
 
     <main class="main">
       <aside class="panel left-panel">
         <div class="stats-row">
           <div class="stat-card">
-            <div class="stat-label">分数 / Score</div>
+            <div class="stat-label">分数 <span class="en hide-narrow">/ Score</span></div>
             <div class="stat-value" id="score">0</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">等级 / Level</div>
+            <div class="stat-label">等级 <span class="en hide-narrow">/ Level</span></div>
             <div class="stat-value" id="level">1</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">消行 / Lines</div>
+            <div class="stat-label">消行 <span class="en hide-narrow">/ Lines</span></div>
             <div class="stat-value" id="lines">0</div>
           </div>
         </div>
@@ -68,16 +68,16 @@
             <button type="button" class="pad-btn" data-action="ccw" aria-label="逆旋">逆旋</button>
             <button type="button" class="pad-btn" data-action="cw" aria-label="顺旋">顺旋</button>
             <button type="button" class="pad-btn pad-hard" data-action="hard" aria-label="硬降">硬降</button>
-            <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">← 左移</button>
-            <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓ 软降</button>
-            <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">右移 →</button>
+            <button type="button" class="pad-btn" data-action="left" data-repeat="1" aria-label="左移">←</button>
+            <button type="button" class="pad-btn" data-action="down" data-repeat="1" aria-label="软降">↓</button>
+            <button type="button" class="pad-btn" data-action="right" data-repeat="1" aria-label="右移">→</button>
           </div>
         </div>
       </section>
 
       <aside class="panel right-panel">
         <div class="stat-card next-card">
-          <div class="stat-label">下一个 / Next</div>
+          <div class="stat-label">下一个 <span class="en hide-narrow">/ Next</span></div>
           <canvas id="next" width="120" height="120"></canvas>
         </div>
         <div class="action-btns">
