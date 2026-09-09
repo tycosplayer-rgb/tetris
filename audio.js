@@ -126,6 +126,7 @@
   let unlocked = false;
   let gameActive = true; // running && !paused && !gameOver
   let lastSoftAt = 0;
+  let gestureListenersAttached = true;
 
   /** @type {HTMLAudioElement|null} */
   let bgmAudio = null;
@@ -158,6 +159,22 @@
     sfxGain.gain.value = sfxEnabled ? 0.85 : 0;
     sfxGain.connect(masterGain);
     return ctx;
+  }
+
+  function applySfxGain() {
+    if (!sfxGain || !ctx) return;
+    const now = ctx.currentTime;
+    sfxGain.gain.cancelScheduledValues(now);
+    sfxGain.gain.setValueAtTime(sfxEnabled ? 0.85 : 0, now);
+  }
+
+  function resumeContext() {
+    const c = ensureContext();
+    if (!c) return Promise.resolve(null);
+    if (c.state === "suspended") {
+      return c.resume().then(() => c).catch(() => c);
+    }
+    return Promise.resolve(c);
   }
 
   function ensureBgmElement() {
@@ -211,7 +228,7 @@
     });
     function onReady() {
       bgmLoadError = false;
-      if (bgmWantPlay) {
+      if (bgmWantPlay || (bgmEnabled && unlocked && gameActive)) {
         playBgmElement();
       }
     }
@@ -264,6 +281,7 @@
     if (!bgmEnabled || !unlocked || !gameActive) return;
     const a = ensureBgmElement();
     a.loop = true;
+    a.muted = false;
     a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
     bgmWantPlay = true;
     const p = a.play();
@@ -295,43 +313,45 @@
     }
   }
 
+  function removeGestureListeners() {
+    if (!gestureListenersAttached) return;
+    gestureListenersAttached = false;
+    ["pointerdown", "keydown", "touchstart"].forEach((ev) => {
+      window.removeEventListener(ev, onFirstGesture, gestureOpts);
+    });
+  }
+
+  /**
+   * Unlock audio from a user gesture.
+   * Sets `unlocked` synchronously so SFX/BGM gated on the flag work immediately
+   * while AudioContext.resume() finishes asynchronously.
+   */
   function unlock() {
+    // Always mark unlocked up-front — callers run from user gestures.
+    unlocked = true;
+    removeGestureListeners();
+
     const c = ensureContext();
     ensureBgmElement();
+    applySfxGain();
+
     const resumeCtx =
       c && c.state === "suspended"
         ? c.resume().catch(() => {})
         : Promise.resolve();
+
     return resumeCtx
       .then(() => {
-        unlocked = true;
-        // Soft-unlock HTMLAudio with a muted play/pause if needed
-        if (bgmAudio && bgmEnabled && gameActive) {
-          playBgmElement();
-        } else if (bgmAudio) {
-          // Prime element for later (some browsers need a play gesture)
-          const wasMuted = bgmAudio.muted;
-          bgmAudio.muted = true;
-          const p = bgmAudio.play();
-          const finish = () => {
-            try {
-              bgmAudio.pause();
-              bgmAudio.currentTime = 0;
-            } catch (_) {
-              /* ignore */
-            }
-            bgmAudio.muted = wasMuted;
-          };
-          if (p && typeof p.then === "function") {
-            p.then(finish).catch(finish);
-          } else {
-            finish();
-          }
-        }
+        // After context is running, sync BGM if it should be audible.
+        // Do NOT use a muted play/pause prime — that races with real BGM play
+        // and can pause music that was just started.
         syncBgm();
         return true;
       })
-      .catch(() => false);
+      .catch(() => {
+        syncBgm();
+        return false;
+      });
   }
 
   function tone(freq, dur, type, gainNode, when, peak, attack, release) {
@@ -378,14 +398,10 @@
     src.stop(t0 + dur + 0.02);
   }
 
-  function playSfx(name, detail) {
-    if (!sfxEnabled) return;
-    const c = ensureContext();
-    if (!c || !unlocked) return;
-    if (c.state === "suspended") {
-      c.resume().catch(() => {});
-    }
-    const t = c.currentTime;
+  function fireSfx(name, detail) {
+    if (!ctx || !sfxGain) return;
+    applySfxGain();
+    const t = ctx.currentTime;
     switch (name) {
       case "move":
         tone(420, 0.045, "triangle", sfxGain, t, 0.06, 0.004, 0.03);
@@ -446,6 +462,32 @@
     }
   }
 
+  function playSfx(name, detail) {
+    if (!sfxEnabled) return;
+
+    // If somehow not unlocked yet but SFX is on, take the unlock path
+    // (safe when called from a gesture; no-ops harmlessly otherwise).
+    if (!unlocked) {
+      unlock();
+    }
+
+    const c = ensureContext();
+    if (!c) return;
+    applySfxGain();
+
+    if (c.state === "suspended") {
+      // Wait for resume before firing tones so they aren't silent.
+      c.resume()
+        .then(() => {
+          if (sfxEnabled) fireSfx(name, detail);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    fireSfx(name, detail);
+  }
+
   function startBgm() {
     if (!unlocked || !bgmEnabled || !gameActive) return;
     ensureBgmElement();
@@ -465,18 +507,33 @@
     sfxEnabled = !!on;
     writeFlag(SFX_KEY, sfxEnabled);
     ensureContext();
-    if (sfxGain && ctx) {
-      const now = ctx.currentTime;
-      sfxGain.gain.cancelScheduledValues(now);
-      sfxGain.gain.setValueAtTime(sfxEnabled ? 0.85 : 0, now);
+    applySfxGain();
+    if (sfxEnabled) {
+      // Turning SFX back on: ensure context is live (gesture usually already called unlock).
+      if (!unlocked) unlock();
+      else resumeContext().then(() => applySfxGain());
     }
   }
 
   function setBgmEnabled(on) {
     bgmEnabled = !!on;
     writeFlag(BGM_KEY, bgmEnabled);
-    if (!bgmEnabled) stopBgm(true);
-    else if (unlocked) syncBgm();
+    if (!bgmEnabled) {
+      stopBgm(true);
+      return;
+    }
+    // Enabling: unlock/resume as needed, then force a play attempt.
+    if (!unlocked) {
+      unlock();
+      return;
+    }
+    resumeContext().then(() => {
+      ensureBgmElement();
+      // Force play even if previously paused / bgmWantPlay was cleared by stopBgm.
+      bgmWantPlay = true;
+      syncBgm();
+      playBgmElement();
+    });
   }
 
   function setBgmTrack(index) {
@@ -533,9 +590,15 @@
     window.addEventListener(ev, onFirstGesture, gestureOpts);
   });
 
-  // Resume BGM if tab becomes visible again while game is active
+  // Resume BGM when tab becomes visible again if music should be playing.
+  // Prefer flags over bgmWantPlay — stopBgm clears that flag.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && bgmWantPlay) {
+    if (
+      document.visibilityState === "visible" &&
+      bgmEnabled &&
+      unlocked &&
+      gameActive
+    ) {
       syncBgm();
     }
   });
