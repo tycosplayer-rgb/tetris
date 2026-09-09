@@ -329,6 +329,7 @@
   const btnRestartSide = document.getElementById("btn-restart-side");
   const btnPause = document.getElementById("btn-pause");
   const btnRotate = document.getElementById("btn-rotate");
+  const btnAuto = document.getElementById("btn-auto");
 
 
   const AudioFX = window.TetrisAudio || null;
@@ -358,6 +359,15 @@
   let paused = false;
   let gameOver = false;
   let animId = 0;
+
+  const AUTO_STORAGE_KEY = "tetris-auto-mode";
+  let autoMode = false;
+  try {
+    autoMode = localStorage.getItem(AUTO_STORAGE_KEY) === "true";
+  } catch (_) {
+    autoMode = false;
+  }
+  let autoBusy = false; // prevent re-entry while placing
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -543,6 +553,216 @@
     return current.y + dy;
   }
 
+
+  function playerInputBlocked() {
+    return autoMode;
+  }
+
+  function cloneGrid(src) {
+    return src.map((row) => row.slice());
+  }
+
+  function pieceFitsOn(g, type, rot, x, y) {
+    const m = SHAPES[type][rot];
+    for (let r = 0; r < m.length; r++) {
+      for (let c = 0; c < m[r].length; c++) {
+        if (!m[r][c]) continue;
+        const px = x + c;
+        const py = y + r;
+        if (px < 0 || px >= COLS || py >= ROWS) return false;
+        if (py < 0) continue;
+        if (g[py][px]) return false;
+      }
+    }
+    return true;
+  }
+
+  function simulateDrop(g, type, rot, x) {
+    // Start above the board so tall stacks still work
+    let y = -4;
+    if (!pieceFitsOn(g, type, rot, x, y)) {
+      // Try a few higher starts, then give up
+      let ok = false;
+      for (let start = -8; start <= 0; start++) {
+        if (pieceFitsOn(g, type, rot, x, start)) {
+          y = start;
+          ok = true;
+          break;
+        }
+      }
+      if (!ok) return null;
+    }
+    while (pieceFitsOn(g, type, rot, x, y + 1)) y++;
+    // Reject if entire piece is still above the board
+    const m = SHAPES[type][rot];
+    let anyOnBoard = false;
+    for (let r = 0; r < m.length; r++) {
+      for (let c = 0; c < m[r].length; c++) {
+        if (m[r][c] && y + r >= 0) anyOnBoard = true;
+      }
+    }
+    if (!anyOnBoard) return null;
+
+    const ng = cloneGrid(g);
+    for (let r = 0; r < m.length; r++) {
+      for (let c = 0; c < m[r].length; c++) {
+        if (!m[r][c]) continue;
+        const px = x + c;
+        const py = y + r;
+        if (py < 0) return null; // would lock above → game over-ish
+        ng[py][px] = type;
+      }
+    }
+
+    let cleared = 0;
+    for (let row = ROWS - 1; row >= 0; row--) {
+      if (ng[row].every((cell) => cell !== null)) {
+        ng.splice(row, 1);
+        ng.unshift(Array(COLS).fill(null));
+        cleared++;
+        row++;
+      }
+    }
+    return { grid: ng, cleared, landingY: y };
+  }
+
+  function evaluateBoard(g, linesCleared) {
+    const heights = new Array(COLS).fill(0);
+    let holes = 0;
+    let aggregateHeight = 0;
+    let bumpiness = 0;
+    let filled = 0;
+
+    for (let c = 0; c < COLS; c++) {
+      let blockSeen = false;
+      let h = 0;
+      for (let r = 0; r < ROWS; r++) {
+        if (g[r][c]) {
+          filled++;
+          if (!blockSeen) {
+            h = ROWS - r;
+            blockSeen = true;
+          }
+        } else if (blockSeen) {
+          holes++;
+        }
+      }
+      heights[c] = h;
+      aggregateHeight += h;
+    }
+
+    for (let c = 0; c < COLS - 1; c++) {
+      bumpiness += Math.abs(heights[c] - heights[c + 1]);
+    }
+
+    const maxHeight = heights.reduce((a, b) => Math.max(a, b), 0);
+
+    // Prefer a deep well (often rightmost) for future I-tetrises
+    let wellDepth = 0;
+    for (let c = 0; c < COLS; c++) {
+      const left = c === 0 ? 99 : heights[c - 1];
+      const right = c === COLS - 1 ? 99 : heights[c + 1];
+      if (left > heights[c] && right > heights[c]) {
+        const depth = Math.min(left, right) - heights[c];
+        if (depth > wellDepth) wellDepth = depth;
+      }
+    }
+
+    // Strongly reward multi-line clears (esp. Tetris) for fast high score
+    const lineBonus = [0, 100, 320, 720, 1600][linesCleared] || 0;
+
+    // Almost-full rows near the bottom encourage future clears
+    let nearComplete = 0;
+    for (let r = ROWS - 1; r >= Math.max(0, ROWS - 6); r--) {
+      let count = 0;
+      for (let c = 0; c < COLS; c++) if (g[r][c]) count++;
+      if (count === COLS - 1) nearComplete += 18;
+      else if (count === COLS - 2) nearComplete += 6;
+    }
+
+    return (
+      lineBonus +
+      nearComplete +
+      wellDepth * 12 -
+      aggregateHeight * 0.55 -
+      holes * 42 -
+      bumpiness * 0.22 -
+      maxHeight * 1.1 -
+      (maxHeight > 14 ? (maxHeight - 14) * 8 : 0)
+    );
+  }
+
+  function findBestPlacement(type) {
+    let best = null;
+    let bestScore = -Infinity;
+    const g = grid;
+
+    for (let rot = 0; rot < 4; rot++) {
+      // O has identical rotations; skip duplicates lightly
+      if (type === "O" && rot > 0) continue;
+      for (let x = -2; x < COLS; x++) {
+        const sim = simulateDrop(g, type, rot, x);
+        if (!sim) continue;
+        const dropDist = Math.max(0, sim.landingY);
+        // Hard-drop points (dist*2) are tiny vs lines; include lightly for tie-break
+        const score =
+          evaluateBoard(sim.grid, sim.cleared) + dropDist * 0.02;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { rot, x, cleared: sim.cleared, score: bestScore };
+        }
+      }
+    }
+    return best;
+  }
+
+  function executeAutoPlacement() {
+    if (!autoMode || !current || paused || gameOver || !running) return;
+    if (autoBusy) return;
+    autoBusy = true;
+    try {
+      const best = findBestPlacement(current.type);
+      if (!best) {
+        // No legal sim — just hard-drop in place
+        hardDrop();
+        return;
+      }
+      // Near-instant: set rotation + column, then hard drop
+      current.rot = best.rot;
+      current.x = best.x;
+      // Lift piece toward top so hard-drop path is clean if gravity moved it
+      if (!pieceFitsOn(grid, current.type, current.rot, current.x, current.y)) {
+        current.y = 0;
+        for (let start = -4; start <= 0; start++) {
+          if (pieceFitsOn(grid, current.type, current.rot, current.x, start)) {
+            current.y = start;
+            break;
+          }
+        }
+      }
+      if (!pieceFitsOn(grid, current.type, current.rot, current.x, current.y)) {
+        // Fallback: try moving from spawn with rotate/move APIs
+        current.rot = 0;
+        current.x = spawnX(current.type);
+        current.y = 0;
+        let guard = 0;
+        while (current.rot !== best.rot && guard++ < 4) rotate(1);
+        guard = 0;
+        while (current.x < best.x && guard++ < COLS + 2) {
+          if (!valid(current, 1, 0)) break;
+          current.x += 1;
+        }
+        while (current.x > best.x && guard++ < COLS + 2) {
+          if (!valid(current, -1, 0)) break;
+          current.x -= 1;
+        }
+      }
+      hardDrop();
+    } finally {
+      autoBusy = false;
+    }
+  }
+
   function drawBlock(ctx, x, y, color, size) {
     const pad = 1;
     const r = 4;
@@ -716,6 +936,14 @@
       drawBoard();
       return;
     }
+    // Auto mode: place one piece per frame (rAF-batched, non-blocking)
+    if (autoMode && current) {
+      lastTime = now;
+      dropAccumulator = 0;
+      executeAutoPlacement();
+      drawBoard();
+      return;
+    }
     const dt = now - lastTime;
     lastTime = now;
     dropAccumulator += dt;
@@ -762,6 +990,7 @@
       return;
     }
     if (gameOver || paused) return;
+    if (playerInputBlocked()) return;
 
     if (code === "ArrowLeft" || code === "KeyA") move(-1);
     else if (code === "ArrowRight" || code === "KeyD") move(1);
@@ -779,11 +1008,50 @@
   btnPause.addEventListener("click", togglePause);
   if (btnRotate) {
     btnRotate.addEventListener("click", () => {
-      rotate(1);
-      drawBoard();
+      if (!playerInputBlocked()) {
+        rotate(1);
+        drawBoard();
+      }
       btnRotate.blur();
     });
   }
+
+  function refreshAutoButton() {
+    if (!btnAuto) return;
+    btnAuto.setAttribute("aria-pressed", autoMode ? "true" : "false");
+    btnAuto.title = autoMode
+      ? "自动模式：开（再点关闭）"
+      : "自动模式：关（电脑自动打分）";
+    btnAuto.textContent = "自动";
+  }
+
+  function setAutoMode(on) {
+    autoMode = !!on;
+    try {
+      localStorage.setItem(AUTO_STORAGE_KEY, autoMode ? "true" : "false");
+    } catch (_) {
+      /* ignore */
+    }
+    refreshAutoButton();
+    // Turning off mid-piece leaves the piece for the player (no extra action)
+    if (!autoMode) {
+      autoBusy = false;
+      lastTime = performance.now();
+      dropAccumulator = 0;
+    }
+  }
+
+  function toggleAutoMode() {
+    setAutoMode(!autoMode);
+  }
+
+  if (btnAuto) {
+    btnAuto.addEventListener("click", () => {
+      toggleAutoMode();
+      btnAuto.blur();
+    });
+  }
+  refreshAutoButton();
   window.addEventListener("keydown", onKey);
 
   // --- Audio toggles (right HUD rail) ---
@@ -957,6 +1225,7 @@
   let dragOverBtn = null;
 
   function runPadAction(action) {
+    if (playerInputBlocked()) return;
     if (action === "left") move(-1);
     else if (action === "right") move(1);
     else if (action === "down") softDrop();
@@ -1294,6 +1563,7 @@
     }
 
     // Prefer horizontal dragging for moves; ignore until past step threshold
+    if (playerInputBlocked()) return;
     while (dx - boardConsumedX >= SWIPE_STEP_PX) {
       boardConsumedX += SWIPE_STEP_PX;
       boardDidSwipe = true;
@@ -1327,7 +1597,7 @@
       Math.abs(dx) <= TAP_MOVE_MAX &&
       Math.abs(dy) <= TAP_MOVE_MAX;
 
-    if (isTap) {
+    if (isTap && !playerInputBlocked()) {
       hardDrop();
       drawBoard();
     }

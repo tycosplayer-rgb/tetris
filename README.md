@@ -46,7 +46,7 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 | Tap (little movement) | Hard drop |
 | Vertical swipe | Ignored (does not hard-drop) |
 
-Right HUD rail also has a **旋转** button (clockwise).
+Right HUD rail: **自动** (AI plays for highest score / fastest clears; first button), pause / restart, audio, and **旋转** (clockwise).
 
 ## Mobile
 
@@ -64,7 +64,7 @@ Right HUD rail also has a **旋转** button (clockwise).
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
 - Procedural SFX (Web Audio API) + **CC0 real-audio BGM** loops under `music/`
-- Right-rail **音效** toggle + **音乐** (10 CC0 tracks: short tap cycles, long press mutes) persisted in `localStorage`
+- Right-rail **自动** mode (heuristic AI hard-drops for score/speed; `tetris-auto-mode`), **音效** toggle + **音乐** (10 CC0 tracks: short tap cycles, long press mutes) persisted in `localStorage`
 
 ## Files
 
@@ -82,6 +82,7 @@ Right HUD rail also has a **旋转** button (clockwise).
 
 | Control | localStorage key | Default |
 |---------|------------------|---------|
+| 自动 (Auto) | `tetris-auto-mode` | off (`false`) |
 | 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
 | 音乐 on/off | `tetris-bgm-enabled` | on (`true`) |
 | 音乐曲目 | `tetris-bgm-track` | `0` (曲目 1) |
