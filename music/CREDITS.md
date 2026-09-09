@@ -15,6 +15,11 @@ Background music tracks used by this Tetris build. All tracks are **CC0** (Creat
 | 09 | 赛博 | 8-bit Epic Space Shooter Music | HydroGene | https://opengameart.org/content/8-bit-epic-space-shooter-music | CC0 |
 | 10 | 田园 | Forest Ambience | TinyWorlds | https://opengameart.org/content/forest-ambience | CC0 |
 
-Files in this folder (`01.ogg` … `10.ogg`) were re-encoded with ffmpeg (Vorbis ~96–112 kbps) for smaller download size. Originals remain available at the source URLs above.
+Files in this folder ship in **two formats** per track:
+
+- `01.mp3` … `10.mp3` — primary format (MPEG). Used by default wherever `audio/mpeg` is supported (Safari, iOS, WeChat, Chrome, Firefox, etc.).
+- `01.ogg` … `10.ogg` — Vorbis fallback (~96–112 kbps) if MP3 is unavailable; also tried automatically if the preferred file fails to load.
+
+Originals remain available at the source URLs above.
 
 SFX remain procedural (Web Audio API) and are not listed here.

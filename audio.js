@@ -7,7 +7,8 @@
  * Game audio: procedural SFX (Web Audio API) + file-based CC0 BGM (HTMLAudioElement).
  * Exposes window.TetrisAudio for game.js / UI toggles.
  *
- * BGM: 10 CC0 loops under music/01.ogg … music/10.ogg (see music/CREDITS.md).
+ * BGM: 10 CC0 loops under music/01.mp3 … music/10.mp3 (and .ogg fallback).
+ * Browsers that support MP3 (Safari/iOS/WeChat) prefer MPEG; others may use OGG.
  * Short-press cycles track; long-press toggles mute (handled in game.js).
  */
 (() => {
@@ -17,41 +18,61 @@
   const BGM_KEY = "tetris-bgm-enabled";
   const BGM_TRACK_KEY = "tetris-bgm-track";
 
-  // Capture script base at load time (document.currentScript is null later).
-  const SCRIPT_BASE = (function () {
+  /**
+   * Prefer MP3 (Safari / iOS / WeChat / most browsers); fall back to OGG
+   * only when audio/mpeg is unsupported.
+   */
+  const PREFERRED_EXT = (function () {
     try {
-      if (document.currentScript && document.currentScript.src) {
-        return document.currentScript.src;
+      const probe = document.createElement("audio");
+      if (probe.canPlayType && probe.canPlayType("audio/mpeg")) {
+        return "mp3";
       }
     } catch (_) {
       /* ignore */
     }
-    return window.location.href;
+    return "ogg";
   })();
 
-  /** Resolve music path relative to this script / page. */
+  const FALLBACK_EXT = PREFERRED_EXT === "mp3" ? "ogg" : "mp3";
+
+  /** Resolve music path relative to the page URL directory (not audio.js). */
   function musicUrl(file) {
     try {
-      return new URL("music/" + file, SCRIPT_BASE).href;
+      const u = new URL(window.location.href);
+      u.hash = "";
+      u.search = "";
+      let path = u.pathname || "/";
+      if (!path.endsWith("/")) {
+        // Strip filename (e.g. index.html) so we resolve from the page directory
+        path = path.substring(0, path.lastIndexOf("/") + 1);
+      }
+      u.pathname = path;
+      return new URL("music/" + file, u).href;
     } catch (_) {
       return "music/" + file;
     }
   }
 
+  function trackFile(base, ext) {
+    return base + "." + ext;
+  }
+
   /**
    * 10 CC0 BGM tracks — display names match music/CREDITS.md.
+   * `base` is the stem (01…10); extension chosen at runtime.
    */
   const BGM_TRACKS = [
-    { name: "轻快", file: "01.ogg", volume: 0.45 },
-    { name: "沉稳", file: "02.ogg", volume: 0.45 },
-    { name: "电子", file: "03.ogg", volume: 0.4 },
-    { name: "像素", file: "04.ogg", volume: 0.42 },
-    { name: "梦幻", file: "05.ogg", volume: 0.48 },
-    { name: "紧张", file: "06.ogg", volume: 0.4 },
-    { name: "探索", file: "07.ogg", volume: 0.42 },
-    { name: "夜行", file: "08.ogg", volume: 0.45 },
-    { name: "赛博", file: "09.ogg", volume: 0.4 },
-    { name: "田园", file: "10.ogg", volume: 0.48 },
+    { name: "轻快", base: "01", volume: 0.45 },
+    { name: "沉稳", base: "02", volume: 0.45 },
+    { name: "电子", base: "03", volume: 0.4 },
+    { name: "像素", base: "04", volume: 0.42 },
+    { name: "梦幻", base: "05", volume: 0.48 },
+    { name: "紧张", base: "06", volume: 0.4 },
+    { name: "探索", base: "07", volume: 0.42 },
+    { name: "夜行", base: "08", volume: 0.45 },
+    { name: "赛博", base: "09", volume: 0.4 },
+    { name: "田园", base: "10", volume: 0.48 },
   ];
 
   function readFlag(key, fallback) {
@@ -110,9 +131,18 @@
   let bgmAudio = null;
   let bgmWantPlay = false;
   let bgmLoadError = false;
+  /** Extension currently loaded for the active track ("mp3" | "ogg"). */
+  let bgmActiveExt = PREFERRED_EXT;
+  /** Whether we already tried the alternate extension for this track load. */
+  let bgmTriedFallback = false;
 
   function currentTrack() {
     return BGM_TRACKS[bgmTrack] || BGM_TRACKS[0];
+  }
+
+  function currentFile(ext) {
+    const tr = currentTrack();
+    return trackFile(tr.base, ext || bgmActiveExt);
   }
 
   function ensureContext() {
@@ -137,20 +167,56 @@
     a.preload = "auto";
     a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
     a.addEventListener("error", () => {
+      const failedFile = currentFile(bgmActiveExt);
+      const errMsg = a.error && a.error.message;
+      if (!bgmTriedFallback) {
+        bgmTriedFallback = true;
+        const alt = FALLBACK_EXT;
+        try {
+          console.warn(
+            "[TetrisAudio] BGM failed to load:",
+            failedFile,
+            errMsg,
+            "— trying alternate extension ." + alt
+          );
+        } catch (_) {
+          /* ignore */
+        }
+        bgmActiveExt = alt;
+        bgmLoadError = false;
+        const url = musicUrl(currentFile(alt));
+        try {
+          a.pause();
+        } catch (_) {
+          /* ignore */
+        }
+        a.src = url;
+        try {
+          a.load();
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
       bgmLoadError = true;
       try {
         console.warn(
-          "[TetrisAudio] BGM failed to load:",
-          currentTrack().file,
-          a.error && a.error.message
+          "[TetrisAudio] BGM failed to load (gave up after alternate):",
+          failedFile,
+          errMsg
         );
       } catch (_) {
         /* ignore */
       }
     });
-    a.addEventListener("canplay", () => {
+    function onReady() {
       bgmLoadError = false;
-    });
+      if (bgmWantPlay) {
+        playBgmElement();
+      }
+    }
+    a.addEventListener("canplay", onReady);
+    a.addEventListener("loadeddata", onReady);
     bgmAudio = a;
     loadCurrentTrackSrc(false);
     return a;
@@ -159,11 +225,18 @@
   function loadCurrentTrackSrc(autoPlay) {
     const a = ensureBgmElement();
     const tr = currentTrack();
-    const url = musicUrl(tr.file);
+    bgmActiveExt = PREFERRED_EXT;
+    bgmTriedFallback = false;
+    const file = currentFile(bgmActiveExt);
+    const url = musicUrl(file);
     bgmLoadError = false;
     a.loop = true;
     a.volume = tr.volume != null ? tr.volume : 0.45;
-    const already = a.src && a.src.indexOf("/" + tr.file) !== -1;
+    // Match either preferred or fallback stem so we don't reload needlessly
+    const stem = "/" + tr.base + ".";
+    const already =
+      a.src &&
+      (a.src.indexOf(stem + "mp3") !== -1 || a.src.indexOf(stem + "ogg") !== -1);
     if (!already) {
       try {
         a.pause();
@@ -436,12 +509,13 @@
 
   function getBgmTrackInfo() {
     const tr = currentTrack();
+    const file = currentFile(bgmActiveExt);
     return {
       index: bgmTrack,
       number: bgmTrack + 1,
       name: tr.name,
       count: BGM_TRACKS.length,
-      file: tr.file,
+      file: file,
     };
   }
 
@@ -471,7 +545,12 @@
     BGM_KEY,
     BGM_TRACK_KEY,
     BGM_TRACK_COUNT: BGM_TRACKS.length,
-    TRACKS: BGM_TRACKS.map((t, i) => ({ index: i, name: t.name, file: t.file })),
+    TRACKS: BGM_TRACKS.map((t, i) => ({
+      index: i,
+      name: t.name,
+      file: trackFile(t.base, PREFERRED_EXT),
+      base: t.base,
+    })),
     unlock,
     play: playSfx,
     isSfxEnabled: () => sfxEnabled,

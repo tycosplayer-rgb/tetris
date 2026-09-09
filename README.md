@@ -62,13 +62,13 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 - `style.css` — dark modern UI + responsive breakpoints
 - `game.js` — game logic, rendering, touch pad, board fit
 - `audio.js` — procedural SFX + HTMLAudio BGM + preference helpers
-- `music/` — 10 CC0 OGG loops (`01.ogg`…`10.ogg`) + [`music/CREDITS.md`](music/CREDITS.md)
+- `music/` — 10 CC0 loops as **MP3 + OGG** (`01.mp3`/`01.ogg` … `10.mp3`/`10.ogg`) + [`music/CREDITS.md`](music/CREDITS.md)
 - `LICENSE` — MIT License
 
 ## Audio
 
 - **SFX** — generated in the browser with the **Web Audio API** (procedural; no SFX files).
-- **BGM** — 10 real **CC0 / public-domain** audio loops (`music/01.ogg` … `music/10.ogg`). Full titles, authors, and source URLs are in [`music/CREDITS.md`](music/CREDITS.md).
+- **BGM** — 10 real **CC0 / public-domain** audio loops under `music/` (`01`…`10` as **`.mp3` + `.ogg`**). Browsers prefer **MP3** (`canPlayType('audio/mpeg')`) for Safari/iOS/WeChat compatibility; OGG is the fallback. Full titles, authors, and source URLs are in [`music/CREDITS.md`](music/CREDITS.md).
 
 | Control | localStorage key | Default |
 |---------|------------------|---------|
