@@ -629,22 +629,25 @@
   function evaluateBoard(g, linesCleared) {
     const heights = new Array(COLS).fill(0);
     let holes = 0;
+    let holeDepth = 0; // covered empty cells: how deep each hole is buried
     let aggregateHeight = 0;
     let bumpiness = 0;
-    let filled = 0;
 
     for (let c = 0; c < COLS; c++) {
       let blockSeen = false;
       let h = 0;
+      let blocksAboveHole = 0;
       for (let r = 0; r < ROWS; r++) {
         if (g[r][c]) {
-          filled++;
           if (!blockSeen) {
             h = ROWS - r;
             blockSeen = true;
           }
+          if (blockSeen) blocksAboveHole++;
         } else if (blockSeen) {
           holes++;
+          // Extra cost for buried holes (more blocks sitting on top)
+          holeDepth += blocksAboveHole;
         }
       }
       heights[c] = h;
@@ -657,45 +660,98 @@
 
     const maxHeight = heights.reduce((a, b) => Math.max(a, b), 0);
 
-    // Prefer a deep well (often rightmost) for future I-tetrises
-    let wellDepth = 0;
+    // Wells: columns strictly lower than both neighbors (walls at edges).
+    // Do NOT reward deep wells — they become unfillable shafts.
+    // Allow at most one shallow edge well (depth 1–2) with a tiny bonus.
+    let wellPenalty = 0;
+    let shallowEdgeBonus = 0;
+    let bestShallowEdge = 0; // depth of the best single edge well ≤2
     for (let c = 0; c < COLS; c++) {
-      const left = c === 0 ? 99 : heights[c - 1];
-      const right = c === COLS - 1 ? 99 : heights[c + 1];
-      if (left > heights[c] && right > heights[c]) {
-        const depth = Math.min(left, right) - heights[c];
-        if (depth > wellDepth) wellDepth = depth;
+      const left = c === 0 ? ROWS : heights[c - 1];
+      const right = c === COLS - 1 ? ROWS : heights[c + 1];
+      if (!(left > heights[c] && right > heights[c])) continue;
+      const depth = Math.min(left, right) - heights[c];
+      if (depth <= 0) continue;
+      const isEdge = c === 0 || c === COLS - 1;
+      const excess = Math.max(0, depth - 1);
+      // Quadratic excess: depth 1 ≈ free, depth 2 mild, depth ≥3 harsh
+      let cost = excess * excess * 28;
+      if (!isEdge) cost += depth * depth * 18; // middle wells much worse
+      else if (depth >= 3) cost += (depth - 2) * (depth - 2) * 40;
+      wellPenalty += cost;
+      if (isEdge && depth >= 1 && depth <= 2 && depth > bestShallowEdge) {
+        bestShallowEdge = depth;
+      }
+    }
+    // Small bonus for keeping ONE shallow edge well (I-piece lane), not deep
+    if (bestShallowEdge > 0) shallowEdgeBonus = bestShallowEdge === 1 ? 6 : 4;
+
+    // Tall isolated spikes / trenches between taller neighbors
+    let spikePenalty = 0;
+    for (let c = 0; c < COLS; c++) {
+      const left = c === 0 ? heights[c] : heights[c - 1];
+      const right = c === COLS - 1 ? heights[c] : heights[c + 1];
+      const rise = heights[c] - Math.max(left, right);
+      if (rise >= 2) spikePenalty += rise * rise * 6;
+      // Deep trench between taller neighbors (even if not a strict well)
+      const dropL = left - heights[c];
+      const dropR = right - heights[c];
+      if (dropL >= 2 && dropR >= 2) {
+        const trench = Math.min(dropL, dropR);
+        if (trench >= 3) spikePenalty += (trench - 2) * (trench - 2) * 12;
       }
     }
 
-    // Strongly reward multi-line clears (esp. Tetris) for fast high score
-    const lineBonus = [0, 100, 320, 720, 1600][linesCleared] || 0;
+    // Line clears still good, but not worth digging a death well for Tetris
+    const lineBonus = [0, 40, 120, 300, 520][linesCleared] || 0;
 
-    // Almost-full rows near the bottom encourage future clears
+    // Almost-full rows encourage natural clears without shaft-building
     let nearComplete = 0;
     for (let r = ROWS - 1; r >= Math.max(0, ROWS - 6); r--) {
       let count = 0;
       for (let c = 0; c < COLS; c++) if (g[r][c]) count++;
-      if (count === COLS - 1) nearComplete += 18;
-      else if (count === COLS - 2) nearComplete += 6;
+      if (count === COLS - 1) nearComplete += 12;
+      else if (count === COLS - 2) nearComplete += 4;
     }
 
     return (
       lineBonus +
       nearComplete +
-      wellDepth * 12 -
-      aggregateHeight * 0.55 -
-      holes * 42 -
-      bumpiness * 0.22 -
-      maxHeight * 1.1 -
-      (maxHeight > 14 ? (maxHeight - 14) * 8 : 0)
+      shallowEdgeBonus -
+      wellPenalty -
+      aggregateHeight * 0.65 -
+      holes * 70 -
+      holeDepth * 8 -
+      bumpiness * 1.35 -
+      spikePenalty -
+      maxHeight * 2.2 -
+      (maxHeight > 12 ? (maxHeight - 12) * 14 : 0) -
+      (maxHeight > 16 ? (maxHeight - 16) * 25 : 0)
     );
+  }
+
+  function bestScoreForPieceOn(g, type) {
+    let bestScore = -Infinity;
+    for (let rot = 0; rot < 4; rot++) {
+      if (type === "O" && rot > 0) continue;
+      for (let x = -2; x < COLS; x++) {
+        const sim = simulateDrop(g, type, rot, x);
+        if (!sim) continue;
+        const dropDist = Math.max(0, sim.landingY);
+        const score =
+          evaluateBoard(sim.grid, sim.cleared) + dropDist * 0.02;
+        if (score > bestScore) bestScore = score;
+      }
+    }
+    return bestScore;
   }
 
   function findBestPlacement(type) {
     let best = null;
     let bestScore = -Infinity;
     const g = grid;
+    const LOOKAHEAD_WEIGHT = 0.55;
+    const useLookahead = !!nextType;
 
     for (let rot = 0; rot < 4; rot++) {
       // O has identical rotations; skip duplicates lightly
@@ -704,9 +760,17 @@
         const sim = simulateDrop(g, type, rot, x);
         if (!sim) continue;
         const dropDist = Math.max(0, sim.landingY);
-        // Hard-drop points (dist*2) are tiny vs lines; include lightly for tie-break
-        const score =
+        let score =
           evaluateBoard(sim.grid, sim.cleared) + dropDist * 0.02;
+        // 1-piece lookahead: best placement of next piece on resulting board
+        if (useLookahead) {
+          const nextBest = bestScoreForPieceOn(sim.grid, nextType);
+          if (nextBest > -Infinity) {
+            score += LOOKAHEAD_WEIGHT * nextBest;
+          } else {
+            score -= 800; // next piece has nowhere to go → avoid
+          }
+        }
         if (score > bestScore) {
           bestScore = score;
           best = { rot, x, cleared: sim.cleared, score: bestScore };
