@@ -256,6 +256,9 @@ kbd {
   box-shadow: var(--shadow), 0 0 0 1px #2a3550;
   width: fit-content;
   max-width: 100%;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #board {
@@ -331,6 +334,14 @@ kbd {
 
 .btn:active {
   transform: scale(0.98);
+}
+
+.btn-rotate {
+  background: #3d5a9e;
+}
+
+.btn-rotate:hover {
+  background: #4a6bb8;
 }
 
 .btn-secondary {

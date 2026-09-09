@@ -38,6 +38,16 @@ Then visit http://localhost:8080/
 
 On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage`.
 
+**Board gestures** (only on the playfield / `#board`, not the whole page):
+
+| Gesture | Action |
+|---------|--------|
+| Swipe left / right | Move piece one cell (drag further to keep stepping) |
+| Tap (little movement) | Hard drop |
+| Vertical swipe | Ignored (does not hard-drop) |
+
+Right HUD rail also has a **旋转** button (clockwise).
+
 ## Mobile
 
 - Portrait: large board on the left, slim vertical right rail (score / level / lines / next / pause / restart); control pad below spanning width

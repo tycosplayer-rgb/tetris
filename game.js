@@ -328,6 +328,7 @@
   const btnRestart = document.getElementById("btn-restart");
   const btnRestartSide = document.getElementById("btn-restart-side");
   const btnPause = document.getElementById("btn-pause");
+  const btnRotate = document.getElementById("btn-rotate");
 
 
   const AudioFX = window.TetrisAudio || null;
@@ -776,6 +777,13 @@
   btnRestart.addEventListener("click", resetGame);
   btnRestartSide.addEventListener("click", resetGame);
   btnPause.addEventListener("click", togglePause);
+  if (btnRotate) {
+    btnRotate.addEventListener("click", () => {
+      rotate(1);
+      drawBoard();
+      btnRotate.blur();
+    });
+  }
   window.addEventListener("keydown", onKey);
 
   // --- Audio toggles (right HUD rail) ---
@@ -1224,10 +1232,138 @@
   }
 
   // Also blur pause/restart so Space/arrows keep going to the game
-  [btnRestart, btnRestartSide, btnPause].forEach((btn) => {
+  [btnRestart, btnRestartSide, btnPause, btnRotate].forEach((btn) => {
     if (!btn) return;
     btn.addEventListener("pointerup", () => btn.blur());
   });
+
+
+
+  // --- Board gestures (touch / pointer on playfield only) ---
+  // Swipe L/R → move; tap (near-stationary) → hard drop; vertical cancels tap.
+  const boardGestureTarget = boardCanvas;
+  const TAP_MOVE_MAX = 14; // px — above this, not a tap
+  const SWIPE_STEP_PX = 32; // px horizontal per cell while dragging
+  const VERTICAL_CANCEL_PX = 18; // vertical motion cancels hard-drop tap
+
+  let boardPtrId = null;
+  let boardStartX = 0;
+  let boardStartY = 0;
+  let boardConsumedX = 0;
+  let boardDidSwipe = false;
+  let boardVertCancel = false;
+
+  function resetBoardGesture() {
+    boardPtrId = null;
+    boardDidSwipe = false;
+    boardVertCancel = false;
+    boardConsumedX = 0;
+  }
+
+  function onBoardPointerDown(e) {
+    if (!boardGestureTarget) return;
+    // Only primary button / one finger; ignore extra pointers
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (boardPtrId != null) return;
+    // Don't steal clicks from overlay UI if somehow targeted
+    if (e.target && e.target.closest && e.target.closest(".overlay")) return;
+
+    boardPtrId = e.pointerId;
+    boardStartX = e.clientX;
+    boardStartY = e.clientY;
+    boardConsumedX = 0;
+    boardDidSwipe = false;
+    boardVertCancel = false;
+    e.preventDefault();
+    try {
+      boardGestureTarget.setPointerCapture(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function onBoardPointerMove(e) {
+    if (boardPtrId == null || e.pointerId !== boardPtrId) return;
+    e.preventDefault();
+
+    const dx = e.clientX - boardStartX;
+    const dy = e.clientY - boardStartY;
+
+    if (Math.abs(dy) >= VERTICAL_CANCEL_PX) {
+      boardVertCancel = true;
+    }
+
+    // Prefer horizontal dragging for moves; ignore until past step threshold
+    while (dx - boardConsumedX >= SWIPE_STEP_PX) {
+      boardConsumedX += SWIPE_STEP_PX;
+      boardDidSwipe = true;
+      move(1);
+      drawBoard();
+    }
+    while (dx - boardConsumedX <= -SWIPE_STEP_PX) {
+      boardConsumedX -= SWIPE_STEP_PX;
+      boardDidSwipe = true;
+      move(-1);
+      drawBoard();
+    }
+  }
+
+  function onBoardPointerUp(e) {
+    if (boardPtrId == null || e.pointerId !== boardPtrId) return;
+    e.preventDefault();
+
+    const dx = e.clientX - boardStartX;
+    const dy = e.clientY - boardStartY;
+    const dist = Math.hypot(dx, dy);
+
+    if (Math.abs(dy) >= VERTICAL_CANCEL_PX) {
+      boardVertCancel = true;
+    }
+
+    const isTap =
+      !boardDidSwipe &&
+      !boardVertCancel &&
+      dist <= TAP_MOVE_MAX &&
+      Math.abs(dx) <= TAP_MOVE_MAX &&
+      Math.abs(dy) <= TAP_MOVE_MAX;
+
+    if (isTap) {
+      hardDrop();
+      drawBoard();
+    }
+
+    try {
+      if (boardGestureTarget.hasPointerCapture(e.pointerId)) {
+        boardGestureTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    resetBoardGesture();
+  }
+
+  function onBoardPointerCancel(e) {
+    if (boardPtrId == null || e.pointerId !== boardPtrId) return;
+    try {
+      if (boardGestureTarget.hasPointerCapture(e.pointerId)) {
+        boardGestureTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    resetBoardGesture();
+  }
+
+  if (boardGestureTarget) {
+    boardGestureTarget.addEventListener("pointerdown", onBoardPointerDown);
+    boardGestureTarget.addEventListener("pointermove", onBoardPointerMove);
+    boardGestureTarget.addEventListener("pointerup", onBoardPointerUp);
+    boardGestureTarget.addEventListener("pointercancel", onBoardPointerCancel);
+    boardGestureTarget.addEventListener("lostpointercapture", () => {
+      resetBoardGesture();
+    });
+    boardGestureTarget.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
 
 
   // --- Responsive board sizing (CSS display size; canvas buffer stays 300×600) ---
