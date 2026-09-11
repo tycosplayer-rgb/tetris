@@ -363,7 +363,7 @@
   let everStarted = false; // session-only: first 开始 → later labels are 重新开始
 
   const AUTO_STORAGE_KEY = "tetris-auto-mode";
-  const PREVIEW_STORAGE_KEY = "tetris-preview-enabled";
+  const PREVIEW_STORAGE_KEY = "tetris-ghost-enabled"; // gray landing-position ghost
 
   function readAutoModeFromStorage() {
     try {
@@ -375,7 +375,16 @@
 
   function readPreviewEnabledFromStorage() {
     try {
-      const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+      let raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+      if (raw === null) {
+        const legacy = localStorage.getItem("tetris-preview-enabled");
+        if (legacy !== null) {
+          raw = legacy;
+          try {
+            localStorage.setItem(PREVIEW_STORAGE_KEY, legacy);
+          } catch (_) {}
+        }
+      }
       // default on; only explicit "false" turns off
       return raw !== "false";
     } catch (_) {
@@ -901,14 +910,16 @@
     }
 
     if (current && !gameOver) {
-      // ghost
-      const gy = ghostY();
+      // landing ghost (gray drop-position preview)
       const m = matrixOf(current);
-      for (let r = 0; r < m.length; r++) {
-        for (let c = 0; c < m[r].length; c++) {
-          if (m[r][c]) {
-            const y = gy + r;
-            if (y >= 0) drawBlock(boardCtx, current.x + c, y, COLORS.GHOST, BLOCK);
+      if (previewEnabled) {
+        const gy = ghostY();
+        for (let r = 0; r < m.length; r++) {
+          for (let c = 0; c < m[r].length; c++) {
+            if (m[r][c]) {
+              const y = gy + r;
+              if (y >= 0) drawBlock(boardCtx, current.x + c, y, COLORS.GHOST, BLOCK);
+            }
           }
         }
       }
@@ -930,9 +941,9 @@
     nextCtx.fillStyle = "#0a0d13";
     nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
     if (nextCard) {
-      nextCard.classList.toggle("preview-off", !previewEnabled);
+      nextCard.classList.remove("preview-off");
     }
-    if (!previewEnabled || !nextType) return;
+    if (!nextType) return;
     const m = SHAPES[nextType][0];
     const size = 24;
     const w = m[0].length * size;
@@ -1135,8 +1146,8 @@
     if (!btnPreview) return;
     btnPreview.setAttribute("aria-pressed", previewEnabled ? "true" : "false");
     btnPreview.title = previewEnabled
-      ? "预览：开（再点关闭下一个方块）"
-      : "预览：关（再点显示下一个方块）";
+      ? "落点预览：开（灰色影子）"
+      : "落点预览：关";
     btnPreview.textContent = "预览";
   }
 
@@ -1151,7 +1162,7 @@
       /* ignore */
     }
     refreshPreviewButton();
-    drawNext();
+    drawBoard();
   }
 
   function togglePreview() {
@@ -1889,6 +1900,7 @@
     refreshPreviewButton();
     refreshAudioButtons();
     drawNext();
+    drawBoard();
     // Pause and layout-edit are session-only — never restore from storage.
     paused = false;
     if (btnPause) btnPause.textContent = "暂停";

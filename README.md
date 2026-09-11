@@ -46,7 +46,7 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 | Tap (little movement) | Hard drop |
 | Vertical swipe | Ignored (does not hard-drop) |
 
-Right HUD rail: **自动** (AI plays for highest score / fastest clears; first button), pause / **开始·重新开始**, audio, and **预览** (toggle next-piece preview).
+Right HUD rail: **自动** (AI plays for highest score / fastest clears; first button), pause / **开始·重新开始**, audio, and **预览** (toggle landing ghost preview).
 
 ## Mobile
 
@@ -58,7 +58,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 
 - All 7 tetrominoes with standard colors
 - Wall kicks on rotation
-- Score / level / lines HUD + next-piece preview (toggleable via **预览**; `tetris-preview-enabled`, default on)
+- Score / level / lines HUD + landing ghost preview (toggleable via **预览**; `tetris-ghost-enabled`, default on)
 - Level up every 10 lines; fall speed increases
 - Ghost piece, pause, game over; must press **开始** on load (no auto-start); after first start, side + overlay buttons read **重新开始** until reload (including game over)
 - Chinese UI labels
@@ -83,7 +83,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 | Control | localStorage key | Default |
 |---------|------------------|---------|
 | 自动 (Auto) | `tetris-auto-mode` | off (`false`) |
-| 预览 (Next piece) | `tetris-preview-enabled` | on (`true`) |
+| 预览 (Next piece) | `tetris-ghost-enabled` | on (`true`) |
 | 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
 | 音乐 on/off | `tetris-bgm-enabled` | on (`true`) |
 | 音乐曲目 | `tetris-bgm-track` | `0` (曲目 1) |
