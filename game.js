@@ -1573,7 +1573,7 @@
 
 
   // --- Board gestures (touch / pointer on playfield only) ---
-  // Swipe L/R → move; swipe up → rotate CW; tap → hard drop.
+  // Swipe L/R → move; swipe up → rotate CW once; tap → hard drop.
   const boardGestureTarget = boardCanvas;
   const TAP_MOVE_MAX = 14; // px — above this, not a tap
   const SWIPE_STEP_PX = 32; // px horizontal per cell while dragging
@@ -1630,12 +1630,11 @@
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
 
-    // Upward-dominant: rotate once per SWIPE_UP_PX of upward travel
+    // Upward-dominant: at most one rotate per gesture (debounce / anti-repeat)
     if (dy < 0 && absY >= absX * AXIS_DOMINANCE) {
-      const up = -dy;
-      while (up - boardConsumedUp >= SWIPE_UP_PX) {
-        boardConsumedUp += SWIPE_UP_PX;
+      if (!boardDidRotateSwipe && absY >= SWIPE_UP_PX) {
         boardDidRotateSwipe = true;
+        boardConsumedUp = absY;
         rotate(1);
         drawBoard();
       }
