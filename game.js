@@ -1573,27 +1573,25 @@
 
 
   // --- Board gestures (touch / pointer on playfield only) ---
-  // Swipe L/R → move; swipe up → rotate CW once; tap → hard drop.
+  // Swipe L/R → move; swipe down → hard drop; tap → rotate CW.
   const boardGestureTarget = boardCanvas;
   const TAP_MOVE_MAX = 14; // px — above this, not a tap
   const SWIPE_STEP_PX = 32; // px horizontal per cell while dragging
-  const SWIPE_UP_PX = 28; // upward swipe threshold for rotate
+  const SWIPE_DOWN_PX = 36; // downward swipe threshold for hard drop
   const AXIS_DOMINANCE = 1.15; // |primary| must exceed |secondary| * this
 
   let boardPtrId = null;
   let boardStartX = 0;
   let boardStartY = 0;
   let boardConsumedX = 0;
-  let boardConsumedUp = 0;
   let boardDidSwipe = false;
-  let boardDidRotateSwipe = false;
+  let boardDidHardDropSwipe = false;
 
   function resetBoardGesture() {
     boardPtrId = null;
     boardDidSwipe = false;
-    boardDidRotateSwipe = false;
+    boardDidHardDropSwipe = false;
     boardConsumedX = 0;
-    boardConsumedUp = 0;
   }
 
   function onBoardPointerDown(e) {
@@ -1608,9 +1606,8 @@
     boardStartX = e.clientX;
     boardStartY = e.clientY;
     boardConsumedX = 0;
-    boardConsumedUp = 0;
     boardDidSwipe = false;
-    boardDidRotateSwipe = false;
+    boardDidHardDropSwipe = false;
     e.preventDefault();
     try {
       boardGestureTarget.setPointerCapture(e.pointerId);
@@ -1630,12 +1627,11 @@
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
 
-    // Upward-dominant: at most one rotate per gesture (debounce / anti-repeat)
-    if (dy < 0 && absY >= absX * AXIS_DOMINANCE) {
-      if (!boardDidRotateSwipe && absY >= SWIPE_UP_PX) {
-        boardDidRotateSwipe = true;
-        boardConsumedUp = absY;
-        rotate(1);
+    // Downward-dominant: hard drop once per gesture
+    if (dy > 0 && absY >= absX * AXIS_DOMINANCE) {
+      if (!boardDidHardDropSwipe && absY >= SWIPE_DOWN_PX) {
+        boardDidHardDropSwipe = true;
+        hardDrop();
         drawBoard();
       }
       return;
@@ -1668,29 +1664,29 @@
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
 
-    // If upward swipe ended without crossing step during move, still rotate once
+    // Downward swipe ended without firing during move → hard drop once
     if (
       !playerInputBlocked() &&
-      !boardDidRotateSwipe &&
+      !boardDidHardDropSwipe &&
       !boardDidSwipe &&
-      dy < 0 &&
-      absY >= SWIPE_UP_PX &&
+      dy > 0 &&
+      absY >= SWIPE_DOWN_PX &&
       absY >= absX * AXIS_DOMINANCE
     ) {
-      boardDidRotateSwipe = true;
-      rotate(1);
+      boardDidHardDropSwipe = true;
+      hardDrop();
       drawBoard();
     }
 
     const isTap =
       !boardDidSwipe &&
-      !boardDidRotateSwipe &&
+      !boardDidHardDropSwipe &&
       dist <= TAP_MOVE_MAX &&
       absX <= TAP_MOVE_MAX &&
       absY <= TAP_MOVE_MAX;
 
     if (isTap && !playerInputBlocked()) {
-      hardDrop();
+      rotate(1);
       drawBoard();
     }
 
