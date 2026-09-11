@@ -1049,7 +1049,8 @@
     drawNext();
     syncStartButtons();
     syncMusicState();
-    showOverlay("开始", "点击开始", true);
+    // First visit: no center overlay button — start via side 「开始」 only
+    hideOverlay();
   }
 
   function loop(now) {
