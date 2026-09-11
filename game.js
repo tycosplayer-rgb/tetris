@@ -1573,24 +1573,27 @@
 
 
   // --- Board gestures (touch / pointer on playfield only) ---
-  // Swipe L/R → move; tap (near-stationary) → hard drop; vertical cancels tap.
+  // Swipe L/R → move; swipe up → rotate CW; tap → hard drop.
   const boardGestureTarget = boardCanvas;
   const TAP_MOVE_MAX = 14; // px — above this, not a tap
   const SWIPE_STEP_PX = 32; // px horizontal per cell while dragging
-  const VERTICAL_CANCEL_PX = 18; // vertical motion cancels hard-drop tap
+  const SWIPE_UP_PX = 28; // upward swipe threshold for rotate
+  const AXIS_DOMINANCE = 1.15; // |primary| must exceed |secondary| * this
 
   let boardPtrId = null;
   let boardStartX = 0;
   let boardStartY = 0;
   let boardConsumedX = 0;
+  let boardConsumedUp = 0;
   let boardDidSwipe = false;
-  let boardVertCancel = false;
+  let boardDidRotateSwipe = false;
 
   function resetBoardGesture() {
     boardPtrId = null;
     boardDidSwipe = false;
-    boardVertCancel = false;
+    boardDidRotateSwipe = false;
     boardConsumedX = 0;
+    boardConsumedUp = 0;
   }
 
   function onBoardPointerDown(e) {
@@ -1605,8 +1608,9 @@
     boardStartX = e.clientX;
     boardStartY = e.clientY;
     boardConsumedX = 0;
+    boardConsumedUp = 0;
     boardDidSwipe = false;
-    boardVertCancel = false;
+    boardDidRotateSwipe = false;
     e.preventDefault();
     try {
       boardGestureTarget.setPointerCapture(e.pointerId);
@@ -1620,25 +1624,38 @@
     e.preventDefault();
 
     const dx = e.clientX - boardStartX;
-    const dy = e.clientY - boardStartY;
-
-    if (Math.abs(dy) >= VERTICAL_CANCEL_PX) {
-      boardVertCancel = true;
-    }
-
-    // Prefer horizontal dragging for moves; ignore until past step threshold
+    const dy = e.clientY - boardStartY; // positive = down
     if (playerInputBlocked()) return;
-    while (dx - boardConsumedX >= SWIPE_STEP_PX) {
-      boardConsumedX += SWIPE_STEP_PX;
-      boardDidSwipe = true;
-      move(1);
-      drawBoard();
+
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    // Upward-dominant: rotate once per SWIPE_UP_PX of upward travel
+    if (dy < 0 && absY >= absX * AXIS_DOMINANCE) {
+      const up = -dy;
+      while (up - boardConsumedUp >= SWIPE_UP_PX) {
+        boardConsumedUp += SWIPE_UP_PX;
+        boardDidRotateSwipe = true;
+        rotate(1);
+        drawBoard();
+      }
+      return;
     }
-    while (dx - boardConsumedX <= -SWIPE_STEP_PX) {
-      boardConsumedX -= SWIPE_STEP_PX;
-      boardDidSwipe = true;
-      move(-1);
-      drawBoard();
+
+    // Horizontal-dominant: move left/right
+    if (absX >= absY * AXIS_DOMINANCE) {
+      while (dx - boardConsumedX >= SWIPE_STEP_PX) {
+        boardConsumedX += SWIPE_STEP_PX;
+        boardDidSwipe = true;
+        move(1);
+        drawBoard();
+      }
+      while (dx - boardConsumedX <= -SWIPE_STEP_PX) {
+        boardConsumedX -= SWIPE_STEP_PX;
+        boardDidSwipe = true;
+        move(-1);
+        drawBoard();
+      }
     }
   }
 
@@ -1649,17 +1666,29 @@
     const dx = e.clientX - boardStartX;
     const dy = e.clientY - boardStartY;
     const dist = Math.hypot(dx, dy);
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
 
-    if (Math.abs(dy) >= VERTICAL_CANCEL_PX) {
-      boardVertCancel = true;
+    // If upward swipe ended without crossing step during move, still rotate once
+    if (
+      !playerInputBlocked() &&
+      !boardDidRotateSwipe &&
+      !boardDidSwipe &&
+      dy < 0 &&
+      absY >= SWIPE_UP_PX &&
+      absY >= absX * AXIS_DOMINANCE
+    ) {
+      boardDidRotateSwipe = true;
+      rotate(1);
+      drawBoard();
     }
 
     const isTap =
       !boardDidSwipe &&
-      !boardVertCancel &&
+      !boardDidRotateSwipe &&
       dist <= TAP_MOVE_MAX &&
-      Math.abs(dx) <= TAP_MOVE_MAX &&
-      Math.abs(dy) <= TAP_MOVE_MAX;
+      absX <= TAP_MOVE_MAX &&
+      absY <= TAP_MOVE_MAX;
 
     if (isTap && !playerInputBlocked()) {
       hardDrop();
