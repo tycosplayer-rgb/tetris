@@ -360,25 +360,32 @@
   let paused = false;
   let gameOver = false;
   let animId = 0;
+  let everStarted = false; // session-only: first 开始 → later labels are 重新开始
 
   const AUTO_STORAGE_KEY = "tetris-auto-mode";
-  let autoMode = false;
-  try {
-    autoMode = localStorage.getItem(AUTO_STORAGE_KEY) === "true";
-  } catch (_) {
-    autoMode = false;
-  }
-  let autoBusy = false; // prevent re-entry while placing
-
   const PREVIEW_STORAGE_KEY = "tetris-preview-enabled";
-  let previewEnabled = true;
-  try {
-    const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
-    // default on; only explicit "false" turns off
-    previewEnabled = raw !== "false";
-  } catch (_) {
-    previewEnabled = true;
+
+  function readAutoModeFromStorage() {
+    try {
+      return localStorage.getItem(AUTO_STORAGE_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
   }
+
+  function readPreviewEnabledFromStorage() {
+    try {
+      const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+      // default on; only explicit "false" turns off
+      return raw !== "false";
+    } catch (_) {
+      return true;
+    }
+  }
+
+  let autoMode = readAutoModeFromStorage();
+  let autoBusy = false; // prevent re-entry while placing
+  let previewEnabled = readPreviewEnabledFromStorage();
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -959,8 +966,10 @@
   }
 
   function syncStartButtons() {
-    // idle & game-over → 开始; mid-run (incl. paused) → 重新开始
-    const label = !running || gameOver ? "开始" : "重新开始";
+    // Idle first visit this page session: 「开始」.
+    // After first resetGame()/start: always 「重新开始」 until reload
+    // (including pause and game over). Not persisted.
+    const label = everStarted ? "重新开始" : "开始";
     if (btnRestart) btnRestart.textContent = label;
     if (btnRestartSide) btnRestartSide.textContent = label;
   }
@@ -973,7 +982,7 @@
     sfx("over");
     syncMusicState();
     syncStartButtons();
-    showOverlay("游戏结束", "Game Over — 点击开始", true);
+    showOverlay("游戏结束", "Game Over — 点击重新开始", true);
     drawBoard();
   }
 
@@ -993,6 +1002,7 @@
   }
 
   function resetGame() {
+    everStarted = true;
     cancelAnimationFrame(animId);
     grid = emptyGrid();
     bag = [];
@@ -1871,7 +1881,21 @@
     window.visualViewport.addEventListener("resize", scheduleFitBoard);
   }
 
+  function restoreUiFromStorage() {
+    autoMode = readAutoModeFromStorage();
+    previewEnabled = readPreviewEnabledFromStorage();
+    refreshAutoButton();
+    refreshPreviewButton();
+    refreshAudioButtons();
+    drawNext();
+    // Pause and layout-edit are session-only — never restore from storage.
+    paused = false;
+    if (btnPause) btnPause.textContent = "暂停";
+    setEditMode(false);
+  }
+
   // boot — do not auto-start; wait for 开始
+  restoreUiFromStorage();
   fitBoard();
   showIdleStart();
   // Second pass after HUD/pad have final heights

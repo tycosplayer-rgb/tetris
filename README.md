@@ -36,7 +36,7 @@ Then visit http://localhost:8080/
 | P | Pause |
 | R | Start / Restart |
 
-On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage`. Game does **not** auto-start — press **开始** (side rail / overlay; becomes **重新开始** while a run is in progress).
+On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage` (`tetris-control-layout-v1`). Game does **not** auto-start — press **开始** (side rail / overlay). After the first start in this page session both buttons stay **重新开始** (including after game over) until reload. Pause and layout-edit are not persisted.
 
 **Board gestures** (only on the playfield / `#board`, not the whole page):
 
@@ -60,7 +60,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 - Wall kicks on rotation
 - Score / level / lines HUD + next-piece preview (toggleable via **预览**; `tetris-preview-enabled`, default on)
 - Level up every 10 lines; fall speed increases
-- Ghost piece, pause, game over; must press **开始** on load (no auto-start); mid-run button reads **重新开始**
+- Ghost piece, pause, game over; must press **开始** on load (no auto-start); after first start, side + overlay buttons read **重新开始** until reload (including game over)
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
 - Procedural SFX (Web Audio API) + **CC0 real-audio BGM** loops under `music/`
@@ -87,6 +87,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 | 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
 | 音乐 on/off | `tetris-bgm-enabled` | on (`true`) |
 | 音乐曲目 | `tetris-bgm-track` | `0` (曲目 1) |
+| 触控板布局 | `tetris-control-layout-v1` | default pad order |
 
 **音乐** button (right HUD rail):
 
@@ -95,7 +96,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 
 Track names: 轻快 / 沉稳 / 电子 / 像素 / 梦幻 / 紧张 / 探索 / 夜行 / 赛博 / 田园.
 
-SFX stays a simple click toggle. Preferences survive refresh. Browsers block autoplay until a gesture — AudioContext + HTMLAudio unlock on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
+SFX stays a simple click toggle. On boot, `restoreUiFromStorage()` refreshes auto / preview / audio button UI from these keys (HTML `aria-pressed` defaults are not trusted). Preferences survive refresh. Pause and layout-edit mode do not. Browsers block autoplay until a gesture — AudioContext + HTMLAudio unlock on first tap/key, then BGM starts if enabled. Pause and game over stop BGM; resume / restart bring it back when music is on.
 
 ## License
 
