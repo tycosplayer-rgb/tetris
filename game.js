@@ -21,6 +21,9 @@
     L: "#f0a000",
     P: "#ff5ec8", // 十字 plus
     U: "#5ee7ff", // 凹字 U
+    K: "#ffe566", // 口字 single
+    R: "#ff8a5c", // 日字
+    V: "#c084fc", // 三格竖线
     GHOST: "rgba(255,255,255,0.18)",
     GRID: "#141a24",
   };
@@ -228,10 +231,32 @@
         [0, 1, 1],
       ],
     ],
+    // 口字 — single cell (special2)
+    K: [
+      [[1]],
+      [[1]],
+      [[1]],
+      [[1]],
+    ],
+    // 日字 — two stacked cells (special2)
+    R: [
+      [[1], [1]],
+      [[1], [1]],
+      [[1], [1]],
+      [[1], [1]],
+    ],
+    // 三格竖线 (special2)
+    V: [
+      [[1], [1], [1]],
+      [[1], [1], [1]],
+      [[1], [1], [1]],
+      [[1], [1], [1]],
+    ],
   };
 
   const BASE_TYPES = ["I", "O", "T", "S", "Z", "J", "L"];
   const SPECIAL_TYPES = ["P", "U"]; // 十字、凹字
+  const SPECIAL2_TYPES = ["K", "R", "V"]; // 口字、日字、三格竖线
   const TYPES = Object.keys(SHAPES);
 
   // Basic wall-kick offsets (simplified SRS-like)
@@ -381,6 +406,7 @@
   const btnPause = document.getElementById("btn-pause");
   const btnPreview = document.getElementById("btn-preview");
   const btnSpecial = document.getElementById("btn-special");
+  const btnSpecial2 = document.getElementById("btn-special2");
   const nextCard = document.querySelector(".next-card");
   const btnAuto = document.getElementById("btn-auto");
 
@@ -417,6 +443,7 @@
   const AUTO_STORAGE_KEY = "tetris-auto-mode";
   const PREVIEW_STORAGE_KEY = "tetris-ghost-enabled"; // gray landing-position ghost
   const SPECIAL_STORAGE_KEY = "tetris-special-pieces"; // 十字 / 凹字
+  const SPECIAL2_STORAGE_KEY = "tetris-special2-pieces"; // 口 / 日 / 竖
 
   function readAutoModeFromStorage() {
     try {
@@ -454,17 +481,29 @@
     }
   }
 
+  function readSpecial2EnabledFromStorage() {
+    try {
+      return localStorage.getItem(SPECIAL2_STORAGE_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
   let autoMode = readAutoModeFromStorage();
   let autoBusy = false; // prevent re-entry while placing
   let previewEnabled = readPreviewEnabledFromStorage();
   let specialEnabled = readSpecialEnabledFromStorage();
+  let special2Enabled = readSpecial2EnabledFromStorage();
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
   }
 
   function activeTypes() {
-    return specialEnabled ? [...BASE_TYPES, ...SPECIAL_TYPES] : [...BASE_TYPES];
+    const pieces = [...BASE_TYPES];
+    if (specialEnabled) pieces.push(...SPECIAL_TYPES);
+    if (special2Enabled) pieces.push(...SPECIAL2_TYPES);
+    return pieces;
   }
 
   function refillBag() {
@@ -476,15 +515,52 @@
     bag.push(...pieces);
   }
 
-  function scrubBagOfSpecial() {
-    bag = bag.filter((t) => !SPECIAL_TYPES.includes(t));
-    if (nextType && SPECIAL_TYPES.includes(nextType)) {
+  function scrubBagOfTypes(types) {
+    bag = bag.filter((t) => !types.includes(t));
+    if (nextType && types.includes(nextType)) {
       nextType = takeFromBag();
       drawNext();
     }
-    if (current && SPECIAL_TYPES.includes(current.type) && !specialEnabled) {
-      // leave current in play; only future pieces are filtered
+  }
+
+  function scrubBagOfSpecial() {
+    scrubBagOfTypes(SPECIAL_TYPES);
+  }
+
+  function scrubBagOfSpecial2() {
+    scrubBagOfTypes(SPECIAL2_TYPES);
+  }
+
+  function isPhasePiece(type) {
+    return type === "K";
+  }
+
+  function isVanishPiece(type) {
+    return type === "R" || type === "V";
+  }
+
+  function lowestEmptyInCol(col) {
+    if (col < 0 || col >= COLS) return null;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (!grid[r][col]) return r;
     }
+    return null;
+  }
+
+  function pieceBottomCell(piece) {
+    const cells = cellsOf(piece);
+    let best = cells[0];
+    for (const cell of cells) {
+      if (cell.y > best.y || (cell.y === best.y && cell.x < best.x)) best = cell;
+    }
+    return best;
+  }
+
+  function dismissCurrentPiece() {
+    // Vanish without locking into the grid
+    current = null;
+    sfx("lock");
+    spawnNext();
   }
 
   function takeFromBag() {
@@ -496,6 +572,8 @@
     // Center roughly: I and O need slight offset
     if (type === "O") return 4;
     if (type === "I") return 3;
+    if (type === "K") return 4;
+    if (type === "R" || type === "V") return 4;
     return 3;
   }
 
@@ -525,9 +603,15 @@
 
   function valid(piece, ox = 0, oy = 0, rot = piece.rot) {
     const cells = cellsOf(piece, ox, oy, rot);
+    const phase = isPhasePiece(piece.type);
     for (const { x, y } of cells) {
       if (x < 0 || x >= COLS || y >= ROWS) return false;
       if (y < 0) continue; // allow spawn above board
+      if (phase) {
+        // 口字: horizontal moves need empty cell; vertical may pass through solids
+        if (ox !== 0 && oy === 0 && grid[y][x]) return false;
+        continue;
+      }
       if (grid[y][x]) return false;
     }
     return true;
@@ -535,9 +619,33 @@
 
   function lockPiece(opts) {
     const fromHard = opts && opts.fromHard;
+    if (!current) return;
+
+    // 日字 / 三格竖线: contacting another block → vanish
+    if (isVanishPiece(current.type)) {
+      dismissCurrentPiece();
+      return;
+    }
+
+    // 口字: snap into the lowest empty gap in this column
+    if (isPhasePiece(current.type)) {
+      const target = lowestEmptyInCol(current.x);
+      if (target === null) {
+        dismissCurrentPiece();
+        return;
+      }
+      current.y = target;
+    }
+
     const cells = cellsOf(current);
     for (const { x, y } of cells) {
       if (y < 0) {
+        endGame();
+        return;
+      }
+      // 口字 should only write empty cells
+      if (grid[y][x]) {
+        if (isPhasePiece(current.type)) continue;
         endGame();
         return;
       }
@@ -587,6 +695,17 @@
 
   function softDrop() {
     if (!current || gameOver || paused) return;
+    if (isPhasePiece(current.type)) {
+      if (current.y + 1 < ROWS) {
+        current.y++;
+        score += 1;
+        updateHUD();
+        sfx("soft");
+      } else {
+        lockPiece();
+      }
+      return;
+    }
     if (valid(current, 0, 1)) {
       current.y++;
       score += 1;
@@ -599,6 +718,21 @@
 
   function hardDrop() {
     if (!current || gameOver || paused) return;
+    if (isPhasePiece(current.type)) {
+      const target = lowestEmptyInCol(current.x);
+      if (target === null) {
+        sfx("hard");
+        dismissCurrentPiece();
+        return;
+      }
+      const dist = Math.max(0, target - current.y);
+      current.y = target;
+      score += dist * 2;
+      updateHUD();
+      sfx("hard");
+      lockPiece({ fromHard: true });
+      return;
+    }
     let dist = 0;
     while (valid(current, 0, dist + 1)) dist++;
     current.y += dist;
@@ -619,7 +753,51 @@
   function rotate(dir) {
     // dir: 1 = CW, -1 = CCW
     if (!current || gameOver || paused) return;
-    if (current.type === "O") return;
+    if (current.type === "O" || current.type === "K") return;
+
+    // 日字: shape unchanged; destroy one cell directly below
+    if (current.type === "R") {
+      const bottom = pieceBottomCell(current);
+      const tx = bottom.x;
+      const ty = bottom.y + 1;
+      if (ty >= 0 && ty < ROWS && tx >= 0 && tx < COLS && grid[ty][tx]) {
+        grid[ty][tx] = null;
+        score += 20 * level;
+        updateHUD();
+        clearLines();
+        sfx("clear", 1);
+      } else {
+        sfx("rotate");
+      }
+      return;
+    }
+
+    // 三格竖线: shape unchanged; add one locked cell directly below
+    if (current.type === "V") {
+      const bottom = pieceBottomCell(current);
+      const tx = bottom.x;
+      const ty = bottom.y + 1;
+      if (
+        ty >= 0 &&
+        ty < ROWS &&
+        tx >= 0 &&
+        tx < COLS &&
+        !grid[ty][tx]
+      ) {
+        // do not place into cells occupied by the falling piece itself
+        const self = new Set(cellsOf(current).map((c) => c.x + "," + c.y));
+        if (!self.has(tx + "," + ty)) {
+          grid[ty][tx] = "V";
+          score += 10 * level;
+          updateHUD();
+          clearLines();
+          sfx("lock");
+          return;
+        }
+      }
+      sfx("rotate");
+      return;
+    }
 
     const from = current.rot;
     const to = (from + dir + 4) % 4;
@@ -653,6 +831,10 @@
 
   function ghostY() {
     if (!current) return 0;
+    if (isPhasePiece(current.type)) {
+      const t = lowestEmptyInCol(current.x);
+      return t === null ? current.y : t;
+    }
     let dy = 0;
     while (valid(current, 0, dy + 1)) dy++;
     return current.y + dy;
@@ -838,7 +1020,7 @@
   function bestScoreForPieceOn(g, type) {
     let bestScore = -Infinity;
     for (let rot = 0; rot < 4; rot++) {
-      if (type === "O" && rot > 0) continue;
+      if ((type === "O" || type === "K" || type === "R" || type === "V" || type === "P") && rot > 0) continue;
       for (let x = -2; x < COLS; x++) {
         const sim = simulateDrop(g, type, rot, x);
         if (!sim) continue;
@@ -860,7 +1042,7 @@
 
     for (let rot = 0; rot < 4; rot++) {
       // O has identical rotations; skip duplicates lightly
-      if (type === "O" && rot > 0) continue;
+      if ((type === "O" || type === "K" || type === "R" || type === "V" || type === "P") && rot > 0) continue;
       for (let x = -2; x < COLS; x++) {
         const sim = simulateDrop(g, type, rot, x);
         if (!sim) continue;
@@ -890,6 +1072,32 @@
     if (autoBusy) return;
     autoBusy = true;
     try {
+      // 特殊2: simple handling (no normal AI lock)
+      if (isPhasePiece(current.type)) {
+        let bestCol = current.x;
+        let bestY = lowestEmptyInCol(bestCol);
+        for (let c = 0; c < COLS; c++) {
+          const y = lowestEmptyInCol(c);
+          if (y === null) continue;
+          if (bestY === null || y > bestY) {
+            bestY = y;
+            bestCol = c;
+          }
+        }
+        if (bestY === null) {
+          dismissCurrentPiece();
+        } else {
+          current.x = bestCol;
+          current.y = bestY;
+          lockPiece({ fromHard: true });
+        }
+        return;
+      }
+      if (isVanishPiece(current.type)) {
+        // Drop until contact then vanish; use one hard-drop cycle
+        hardDrop();
+        return;
+      }
       const best = findBestPlacement(current.type);
       if (!best) {
         // No legal sim — just hard-drop in place
@@ -1172,7 +1380,15 @@
     dropAccumulator += dt;
     while (dropAccumulator >= dropInterval) {
       dropAccumulator -= dropInterval;
-      if (valid(current, 0, 1)) {
+      if (!current) break;
+      if (isPhasePiece(current.type)) {
+        if (current.y + 1 < ROWS) {
+          current.y++;
+        } else {
+          lockPiece();
+          break;
+        }
+      } else if (valid(current, 0, 1)) {
         current.y++;
       } else {
         lockPiece();
@@ -1306,6 +1522,50 @@
     });
   }
   refreshSpecialButton();
+
+  function refreshSpecial2Button() {
+    if (!btnSpecial2) return;
+    btnSpecial2.setAttribute(
+      "aria-pressed",
+      special2Enabled ? "true" : "false"
+    );
+    btnSpecial2.title = special2Enabled
+      ? "特殊2：开（口字 / 日字 / 三格竖线）"
+      : "特殊2：关";
+    btnSpecial2.textContent = "特殊2";
+  }
+
+  function setSpecial2Enabled(on) {
+    special2Enabled = !!on;
+    try {
+      localStorage.setItem(
+        SPECIAL2_STORAGE_KEY,
+        special2Enabled ? "true" : "false"
+      );
+    } catch (_) {
+      /* ignore */
+    }
+    refreshSpecial2Button();
+    if (!special2Enabled) {
+      scrubBagOfSpecial2();
+    } else {
+      bag = [];
+      refillBag();
+    }
+    drawBoard();
+  }
+
+  function toggleSpecial2() {
+    setSpecial2Enabled(!special2Enabled);
+  }
+
+  if (btnSpecial2) {
+    btnSpecial2.addEventListener("click", () => {
+      toggleSpecial2();
+      btnSpecial2.blur();
+    });
+  }
+  refreshSpecial2Button();
 
   function refreshAutoButton() {
     if (!btnAuto) return;
@@ -2027,9 +2287,11 @@
     autoMode = readAutoModeFromStorage();
     previewEnabled = readPreviewEnabledFromStorage();
     specialEnabled = readSpecialEnabledFromStorage();
+    special2Enabled = readSpecial2EnabledFromStorage();
     refreshAutoButton();
     refreshPreviewButton();
     refreshSpecialButton();
+    refreshSpecial2Button();
     refreshAudioButtons();
     drawNext();
     drawBoard();
