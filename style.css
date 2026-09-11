@@ -341,12 +341,8 @@ kbd {
   transform: scale(0.98);
 }
 
-.btn-rotate {
-  background: #3d5a9e;
-}
-
-.btn-rotate:hover {
-  background: #4a6bb8;
+.next-card.preview-off #next {
+  opacity: 0.4;
 }
 
 .btn-secondary {

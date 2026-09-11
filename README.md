@@ -34,9 +34,9 @@ Then visit http://localhost:8080/
 | Z | Rotate CCW |
 | Space | Hard drop |
 | P | Pause |
-| R | Restart |
+| R | Start / Restart |
 
-On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage`.
+On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). Tap **编辑布局** to rearrange buttons; layout is saved in `localStorage`. Game does **not** auto-start — press **开始** (side rail / overlay; becomes **重新开始** while a run is in progress).
 
 **Board gestures** (only on the playfield / `#board`, not the whole page):
 
@@ -46,7 +46,7 @@ On phones, use the on-screen control pad (hold left/right/soft-drop to repeat). 
 | Tap (little movement) | Hard drop |
 | Vertical swipe | Ignored (does not hard-drop) |
 
-Right HUD rail: **自动** (AI plays for highest score / fastest clears; first button), pause / restart, audio, and **旋转** (clockwise).
+Right HUD rail: **自动** (AI plays for highest score / fastest clears; first button), pause / **开始·重新开始**, audio, and **预览** (toggle next-piece preview).
 
 ## Mobile
 
@@ -58,9 +58,9 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 
 - All 7 tetrominoes with standard colors
 - Wall kicks on rotation
-- Score / level / lines HUD + next-piece preview
+- Score / level / lines HUD + next-piece preview (toggleable via **预览**; `tetris-preview-enabled`, default on)
 - Level up every 10 lines; fall speed increases
-- Ghost piece, pause, game over + restart
+- Ghost piece, pause, game over; must press **开始** on load (no auto-start); mid-run button reads **重新开始**
 - Chinese UI labels
 - Editable on-screen pad layout (persisted)
 - Procedural SFX (Web Audio API) + **CC0 real-audio BGM** loops under `music/`
@@ -83,6 +83,7 @@ Right HUD rail: **自动** (AI plays for highest score / fastest clears; first b
 | Control | localStorage key | Default |
 |---------|------------------|---------|
 | 自动 (Auto) | `tetris-auto-mode` | off (`false`) |
+| 预览 (Next piece) | `tetris-preview-enabled` | on (`true`) |
 | 音效 (SFX) | `tetris-sfx-enabled` | on (`true`) |
 | 音乐 on/off | `tetris-bgm-enabled` | on (`true`) |
 | 音乐曲目 | `tetris-bgm-track` | `0` (曲目 1) |

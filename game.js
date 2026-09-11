@@ -328,7 +328,8 @@
   const btnRestart = document.getElementById("btn-restart");
   const btnRestartSide = document.getElementById("btn-restart-side");
   const btnPause = document.getElementById("btn-pause");
-  const btnRotate = document.getElementById("btn-rotate");
+  const btnPreview = document.getElementById("btn-preview");
+  const nextCard = document.querySelector(".next-card");
   const btnAuto = document.getElementById("btn-auto");
 
 
@@ -368,6 +369,16 @@
     autoMode = false;
   }
   let autoBusy = false; // prevent re-entry while placing
+
+  const PREVIEW_STORAGE_KEY = "tetris-preview-enabled";
+  let previewEnabled = true;
+  try {
+    const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+    // default on; only explicit "false" turns off
+    previewEnabled = raw !== "false";
+  } catch (_) {
+    previewEnabled = true;
+  }
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -911,7 +922,10 @@
     nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
     nextCtx.fillStyle = "#0a0d13";
     nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
-    if (!nextType) return;
+    if (nextCard) {
+      nextCard.classList.toggle("preview-off", !previewEnabled);
+    }
+    if (!previewEnabled || !nextType) return;
     const m = SHAPES[nextType][0];
     const size = 24;
     const w = m[0].length * size;
@@ -944,6 +958,13 @@
     overlay.classList.add("hidden");
   }
 
+  function syncStartButtons() {
+    // idle & game-over → 开始; mid-run (incl. paused) → 重新开始
+    const label = !running || gameOver ? "开始" : "重新开始";
+    if (btnRestart) btnRestart.textContent = label;
+    if (btnRestartSide) btnRestartSide.textContent = label;
+  }
+
   function endGame() {
     gameOver = true;
     running = false;
@@ -951,7 +972,8 @@
     btnPause.textContent = "暂停";
     sfx("over");
     syncMusicState();
-    showOverlay("游戏结束", "Game Over — 点击重新开始", true);
+    syncStartButtons();
+    showOverlay("游戏结束", "Game Over — 点击开始", true);
     drawBoard();
   }
 
@@ -966,6 +988,7 @@
       hideOverlay();
       lastTime = performance.now();
     }
+    syncStartButtons();
     syncMusicState();
   }
 
@@ -987,10 +1010,36 @@
     nextType = takeFromBag();
     spawnNext();
     updateHUD();
+    syncStartButtons();
     syncMusicState();
     if (AudioFX) AudioFX.unlock();
     lastTime = performance.now();
     loop(lastTime);
+  }
+
+  /** Idle / not-yet-started screen — no loop until user presses 开始. */
+  function showIdleStart() {
+    cancelAnimationFrame(animId);
+    grid = emptyGrid();
+    bag = [];
+    current = null;
+    nextType = null;
+    score = 0;
+    level = 1;
+    lines = 0;
+    dropInterval = 1000;
+    dropAccumulator = 0;
+    gameOver = false;
+    paused = false;
+    running = false;
+    autoBusy = false;
+    btnPause.textContent = "暂停";
+    updateHUD();
+    drawBoard();
+    drawNext();
+    syncStartButtons();
+    syncMusicState();
+    showOverlay("开始", "点击开始", true);
   }
 
   function loop(now) {
@@ -1053,7 +1102,7 @@
       togglePause();
       return;
     }
-    if (gameOver || paused) return;
+    if (gameOver || paused || !running) return;
     if (playerInputBlocked()) return;
 
     if (code === "ArrowLeft" || code === "KeyA") move(-1);
@@ -1070,15 +1119,41 @@
   btnRestart.addEventListener("click", resetGame);
   btnRestartSide.addEventListener("click", resetGame);
   btnPause.addEventListener("click", togglePause);
-  if (btnRotate) {
-    btnRotate.addEventListener("click", () => {
-      if (!playerInputBlocked()) {
-        rotate(1);
-        drawBoard();
-      }
-      btnRotate.blur();
+
+  function refreshPreviewButton() {
+    if (!btnPreview) return;
+    btnPreview.setAttribute("aria-pressed", previewEnabled ? "true" : "false");
+    btnPreview.title = previewEnabled
+      ? "预览：开（再点关闭下一个方块）"
+      : "预览：关（再点显示下一个方块）";
+    btnPreview.textContent = "预览";
+  }
+
+  function setPreviewEnabled(on) {
+    previewEnabled = !!on;
+    try {
+      localStorage.setItem(
+        PREVIEW_STORAGE_KEY,
+        previewEnabled ? "true" : "false"
+      );
+    } catch (_) {
+      /* ignore */
+    }
+    refreshPreviewButton();
+    drawNext();
+  }
+
+  function togglePreview() {
+    setPreviewEnabled(!previewEnabled);
+  }
+
+  if (btnPreview) {
+    btnPreview.addEventListener("click", () => {
+      togglePreview();
+      btnPreview.blur();
     });
   }
+  refreshPreviewButton();
 
   function refreshAutoButton() {
     if (!btnAuto) return;
@@ -1565,7 +1640,7 @@
   }
 
   // Also blur pause/restart so Space/arrows keep going to the game
-  [btnRestart, btnRestartSide, btnPause, btnRotate].forEach((btn) => {
+  [btnRestart, btnRestartSide, btnPause, btnPreview].forEach((btn) => {
     if (!btn) return;
     btn.addEventListener("pointerup", () => btn.blur());
   });
@@ -1796,9 +1871,9 @@
     window.visualViewport.addEventListener("resize", scheduleFitBoard);
   }
 
-  // boot
+  // boot — do not auto-start; wait for 开始
   fitBoard();
-  resetGame();
+  showIdleStart();
   // Second pass after HUD/pad have final heights
   requestAnimationFrame(() => {
     fitBoard();
