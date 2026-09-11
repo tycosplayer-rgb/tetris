@@ -16,7 +16,7 @@
   --radius: 14px;
   --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   /* Chrome without top HUD: compact header + pad + gaps */
-  --mobile-chrome: 150px;
+  --mobile-chrome: 210px;
   --hud-rail-width: 168px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -39,8 +39,10 @@ html {
 html,
 body {
   margin: 0;
-  min-height: 100%;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%, #1a2744 0%, transparent 55%),
     var(--bg);
@@ -59,14 +61,22 @@ body {
 .app {
   max-width: 920px;
   margin: 0 auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   padding:
     max(12px, var(--safe-top))
     max(16px, var(--safe-right))
-    max(20px, calc(var(--safe-bottom) + 10px))
+    max(12px, calc(var(--safe-bottom) + 6px))
     max(16px, var(--safe-left));
 }
 
 .header {
+  flex: 0 0 auto;
   text-align: center;
   margin-bottom: 10px;
 }
@@ -86,23 +96,29 @@ body {
 
 /* Desktop: large play area left/center, vertical HUD rail on the right */
 .main {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--hud-rail-width);
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     "play hud"
-    "pad  hud"
-    "help help";
+    "pad  hud";
   gap: 14px 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .play-area {
   grid-area: play;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   min-width: 0;
+  min-height: 0;
   width: 100%;
+  height: 100%;
+  overflow: hidden;
+  container-type: size;
 }
 
 .hud-rail {
@@ -112,10 +128,15 @@ body {
   flex-direction: column;
   gap: 10px;
   align-self: stretch;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .control-pad-wrap {
   grid-area: pad;
+  flex: 0 0 auto;
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
@@ -261,10 +282,12 @@ kbd {
   box-shadow: var(--shadow), 0 0 0 1px #2a3550;
   width: fit-content;
   max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  box-sizing: border-box;
 }
 
 #board {
@@ -272,12 +295,21 @@ kbd {
   background: #06080c;
   border-radius: 8px;
   image-rendering: pixelated;
-  /* Larger default board — more of the freed width/height */
-  width: 360px;
+  /* Fallback if container queries unavailable */
+  width: min(360px, 100%, calc((100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom)) / 2));
   max-width: 100%;
   height: auto;
+  max-height: calc(100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom));
   aspect-ratio: 10 / 20;
   touch-action: none;
+}
+
+@supports (width: 1cqh) {
+  #board {
+    /* Fit play-area cell exactly (10:20) */
+    width: min(360px, 100cqw, calc((100cqh - 12px) / 2));
+    max-height: calc(100cqh - 12px);
+  }
 }
 
 .overlay {
@@ -539,7 +571,8 @@ kbd {
 }
 
 .footer {
-  margin-top: 16px;
+  flex: 0 0 auto;
+  margin-top: 8px;
   text-align: center;
   color: var(--muted);
   font-size: 0.75rem;
@@ -548,7 +581,7 @@ kbd {
 /* ========== Mobile / tablet portrait: board left, slim right rail ========== */
 @media (max-width: 800px) {
   :root {
-    --mobile-chrome: 140px;
+    --mobile-chrome: 210px;
     --hud-rail-width: 88px;
     --radius: 10px;
   }
@@ -576,17 +609,18 @@ kbd {
 
   .main {
     grid-template-columns: minmax(0, 1fr) var(--hud-rail-width);
+    grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas:
       "play hud"
-      "pad  pad"
-      "help help";
+      "pad  pad";
     gap: 6px 6px;
     align-items: stretch;
   }
 
   .play-area {
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
+    min-height: 0;
   }
 
   .hud-rail {
@@ -685,17 +719,20 @@ kbd {
 
   .board-wrap {
     margin: 0 auto;
-    padding: 4px;
+    padding: 3px;
     border-radius: 10px;
+    max-height: 100%;
   }
 
   #board {
     width: min(
-      100%,
-      380px,
-      calc((100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom)) / 2)
+      100cqw,
+      calc((100cqh - 6px) / 2),
+      calc(100vw - var(--hud-rail-width) - 18px - var(--safe-left) - var(--safe-right))
     );
-    max-height: calc(100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(100cqh - 6px);
+    height: auto;
+    aspect-ratio: 10 / 20;
   }
 
   .control-pad {
@@ -704,16 +741,16 @@ kbd {
   }
 
   .pad-btn {
-    min-height: 40px;
-    padding: 6px 4px;
-    font-size: 0.82rem;
+    min-height: 36px;
+    padding: 5px 4px;
+    font-size: 0.8rem;
     border-radius: 10px;
   }
 
   .pad-tool-btn {
-    min-height: 32px;
-    padding: 4px 6px;
-    font-size: 0.7rem;
+    min-height: 28px;
+    padding: 3px 6px;
+    font-size: 0.68rem;
   }
 
   .footer {
@@ -733,7 +770,7 @@ kbd {
 /* Phones ~375–430px */
 @media (max-width: 480px) {
   :root {
-    --mobile-chrome: 128px;
+    --mobile-chrome: 200px;
     --hud-rail-width: 76px;
   }
 
@@ -787,13 +824,8 @@ kbd {
     display: none;
   }
 
-  #board {
-    width: min(
-      calc(100vw - var(--hud-rail-width) - 18px - var(--safe-left) - var(--safe-right)),
-      380px,
-      calc((100dvh - var(--mobile-chrome) - var(--safe-top) - var(--safe-bottom)) / 2)
-    );
-  }
+  /* board sizing via container queries above */
+
 
   .control-pad {
     gap: 5px;
@@ -813,7 +845,7 @@ kbd {
 /* Short portrait viewports */
 @media (max-width: 800px) and (max-height: 700px) {
   :root {
-    --mobile-chrome: 118px;
+    --mobile-chrome: 190px;
   }
 
   .header {
@@ -927,11 +959,9 @@ kbd {
   }
 
   #board {
-    width: min(
-      100%,
-      280px,
-      calc((100dvh - 32px - var(--safe-top) - var(--safe-bottom)) / 2)
-    );
+    width: min(100cqw, calc((100cqh - 6px) / 2), 280px);
+    max-height: calc(100cqh - 6px);
+    height: auto;
   }
 
   .board-wrap {
@@ -961,10 +991,9 @@ kbd {
   }
 
   #board {
-    width: min(
-      320px,
-      calc((100dvh - 28px - var(--safe-top) - var(--safe-bottom)) / 2)
-    );
+    width: min(100cqw, calc((100cqh - 6px) / 2), 320px);
+    max-height: calc(100cqh - 6px);
+    height: auto;
   }
 
   .pad-btn {
