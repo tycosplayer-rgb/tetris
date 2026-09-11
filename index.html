@@ -25,6 +25,14 @@
       <section class="play-area" aria-label="游戏区域">
         <div class="board-wrap">
           <canvas id="board" width="300" height="600" aria-label="游戏板"></canvas>
+          <div id="idle-tip" class="idle-tip" aria-label="操作提示">
+            <p>点侧边「开始」开局</p>
+            <ul>
+              <li>左右滑：移动</li>
+              <li>点按：旋转</li>
+              <li>下划：硬降</li>
+            </ul>
+          </div>
           <div id="overlay" class="overlay hidden">
             <div class="overlay-card">
               <h2 id="overlay-title">暂停</h2>
@@ -96,10 +104,6 @@
         </div>
       </div>
 
-      <details class="help help-mobile">
-        <summary>操作提示</summary>
-        <p class="touch-tip">进入页面后需点侧边「开始」才开局。游戏框内：左右滑动移动、点按旋转、下划硬降。右侧「预览」开关落点灰色影子。下方触控板：移动、旋转、软降、硬降；可「编辑布局」拖动按钮。电脑可用键盘。</p>
-      </details>
     </main>
 
     <footer class="footer">

@@ -323,6 +323,7 @@
   const elLevel = document.getElementById("level");
   const elLines = document.getElementById("lines");
   const overlay = document.getElementById("overlay");
+  const idleTip = document.getElementById("idle-tip");
   const overlayTitle = document.getElementById("overlay-title");
   const overlayMsg = document.getElementById("overlay-msg");
   const btnRestart = document.getElementById("btn-restart");
@@ -976,6 +977,14 @@
     overlay.classList.add("hidden");
   }
 
+  function showIdleTip() {
+    if (idleTip) idleTip.classList.remove("hidden");
+  }
+
+  function hideIdleTip() {
+    if (idleTip) idleTip.classList.add("hidden");
+  }
+
   function syncStartButtons() {
     // Idle first visit this page session: 「开始」.
     // After first resetGame()/start: always 「重新开始」 until reload
@@ -1013,6 +1022,7 @@
   }
 
   function resetGame() {
+    hideIdleTip();
     everStarted = true;
     cancelAnimationFrame(animId);
     grid = emptyGrid();
@@ -1060,8 +1070,9 @@
     drawNext();
     syncStartButtons();
     syncMusicState();
-    // First visit: no center overlay button — start via side 「开始」 only
+    // First visit: tips centered in board; start via side 「开始」 only
     hideOverlay();
+    showIdleTip();
   }
 
   function loop(now) {

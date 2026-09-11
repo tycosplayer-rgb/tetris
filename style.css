@@ -970,3 +970,45 @@ kbd {
     min-height: 42px;
   }
 }
+
+
+/* Centered idle tips inside the playfield (no page scrollbar) */
+.idle-tip {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  pointer-events: none;
+  text-align: center;
+  color: var(--text);
+  background: rgba(8, 10, 16, 0.55);
+  border-radius: inherit;
+}
+
+.idle-tip.hidden {
+  display: none;
+}
+
+.idle-tip p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.idle-tip ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.idle-tip li {
+  margin: 0;
+}
