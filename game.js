@@ -556,6 +556,24 @@
     return best;
   }
 
+  /** First occupied cell in column strictly below fromY; null if none. */
+  function firstSolidBelow(col, fromY) {
+    if (col < 0 || col >= COLS) return null;
+    for (let r = fromY + 1; r < ROWS; r++) {
+      if (grid[r][col]) return r;
+    }
+    return null;
+  }
+
+  /** First empty cell in column strictly below fromY; null if none. */
+  function firstEmptyBelow(col, fromY) {
+    if (col < 0 || col >= COLS) return null;
+    for (let r = fromY + 1; r < ROWS; r++) {
+      if (!grid[r][col]) return r;
+    }
+    return null;
+  }
+
   function dismissCurrentPiece() {
     // Vanish without locking into the grid
     current = null;
@@ -755,12 +773,12 @@
     if (!current || gameOver || paused) return;
     if (current.type === "O" || current.type === "K") return;
 
-    // 日字: shape unchanged; destroy one cell directly below
+    // 日字: shape unchanged; destroy the nearest solid cell below in this column
     if (current.type === "R") {
       const bottom = pieceBottomCell(current);
       const tx = bottom.x;
-      const ty = bottom.y + 1;
-      if (ty >= 0 && ty < ROWS && tx >= 0 && tx < COLS && grid[ty][tx]) {
+      const ty = firstSolidBelow(tx, bottom.y);
+      if (ty !== null) {
         grid[ty][tx] = null;
         score += 20 * level;
         updateHUD();
@@ -769,22 +787,27 @@
       } else {
         sfx("rotate");
       }
+      drawBoard();
       return;
     }
 
-    // 三格竖线: shape unchanged; add one locked cell directly below
+    // 三格竖线: shape unchanged; fill the nearest empty cell below in this column
+    // (通常是脚下紧挨一格；若被挡住则落到该列更下方的空隙)
     if (current.type === "V") {
       const bottom = pieceBottomCell(current);
       const tx = bottom.x;
-      const ty = bottom.y + 1;
+      let ty = null;
+      // Prefer the immediate cell below when empty; otherwise first empty below.
       if (
-        ty >= 0 &&
-        ty < ROWS &&
-        tx >= 0 &&
-        tx < COLS &&
-        !grid[ty][tx]
+        bottom.y + 1 < ROWS &&
+        bottom.y + 1 >= 0 &&
+        !grid[bottom.y + 1][tx]
       ) {
-        // do not place into cells occupied by the falling piece itself
+        ty = bottom.y + 1;
+      } else {
+        ty = firstEmptyBelow(tx, bottom.y);
+      }
+      if (ty !== null) {
         const self = new Set(cellsOf(current).map((c) => c.x + "," + c.y));
         if (!self.has(tx + "," + ty)) {
           grid[ty][tx] = "V";
@@ -792,10 +815,12 @@
           updateHUD();
           clearLines();
           sfx("lock");
+          drawBoard();
           return;
         }
       }
       sfx("rotate");
+      drawBoard();
       return;
     }
 
@@ -1776,6 +1801,7 @@
   let dragOverBtn = null;
 
   function runPadAction(action) {
+    if (gameOver || paused || !running) return;
     if (playerInputBlocked()) return;
     if (action === "left") move(-1);
     else if (action === "right") move(1);
