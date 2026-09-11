@@ -19,6 +19,8 @@
     Z: "#f00000",
     J: "#0000f0",
     L: "#f0a000",
+    P: "#ff5ec8", // 十字 plus
+    U: "#5ee7ff", // 凹字 U
     GHOST: "rgba(255,255,255,0.18)",
     GRID: "#141a24",
   };
@@ -180,8 +182,56 @@
         [0, 1, 0],
       ],
     ],
+    // 十字 (plus) — 4 rotations identical
+    P: [
+      [
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0],
+      ],
+      [
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0],
+      ],
+      [
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0],
+      ],
+      [
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0],
+      ],
+    ],
+    // 凹字 (U pentomino)
+    U: [
+      [
+        [1, 0, 1],
+        [1, 1, 1],
+        [0, 0, 0],
+      ],
+      [
+        [1, 1, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+      ],
+      [
+        [0, 0, 0],
+        [1, 1, 1],
+        [1, 0, 1],
+      ],
+      [
+        [0, 1, 1],
+        [0, 0, 1],
+        [0, 1, 1],
+      ],
+    ],
   };
 
+  const BASE_TYPES = ["I", "O", "T", "S", "Z", "J", "L"];
+  const SPECIAL_TYPES = ["P", "U"]; // 十字、凹字
   const TYPES = Object.keys(SHAPES);
 
   // Basic wall-kick offsets (simplified SRS-like)
@@ -330,6 +380,7 @@
   const btnRestartSide = document.getElementById("btn-restart-side");
   const btnPause = document.getElementById("btn-pause");
   const btnPreview = document.getElementById("btn-preview");
+  const btnSpecial = document.getElementById("btn-special");
   const nextCard = document.querySelector(".next-card");
   const btnAuto = document.getElementById("btn-auto");
 
@@ -365,6 +416,7 @@
 
   const AUTO_STORAGE_KEY = "tetris-auto-mode";
   const PREVIEW_STORAGE_KEY = "tetris-ghost-enabled"; // gray landing-position ghost
+  const SPECIAL_STORAGE_KEY = "tetris-special-pieces"; // 十字 / 凹字
 
   function readAutoModeFromStorage() {
     try {
@@ -393,21 +445,46 @@
     }
   }
 
+  function readSpecialEnabledFromStorage() {
+    try {
+      // default off
+      return localStorage.getItem(SPECIAL_STORAGE_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
   let autoMode = readAutoModeFromStorage();
   let autoBusy = false; // prevent re-entry while placing
   let previewEnabled = readPreviewEnabledFromStorage();
+  let specialEnabled = readSpecialEnabledFromStorage();
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
   }
 
+  function activeTypes() {
+    return specialEnabled ? [...BASE_TYPES, ...SPECIAL_TYPES] : [...BASE_TYPES];
+  }
+
   function refillBag() {
-    const pieces = [...TYPES];
+    const pieces = activeTypes();
     for (let i = pieces.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
     }
     bag.push(...pieces);
+  }
+
+  function scrubBagOfSpecial() {
+    bag = bag.filter((t) => !SPECIAL_TYPES.includes(t));
+    if (nextType && SPECIAL_TYPES.includes(nextType)) {
+      nextType = takeFromBag();
+      drawNext();
+    }
+    if (current && SPECIAL_TYPES.includes(current.type) && !specialEnabled) {
+      // leave current in play; only future pieces are filtered
+    }
   }
 
   function takeFromBag() {
@@ -1188,6 +1265,48 @@
   }
   refreshPreviewButton();
 
+  function refreshSpecialButton() {
+    if (!btnSpecial) return;
+    btnSpecial.setAttribute("aria-pressed", specialEnabled ? "true" : "false");
+    btnSpecial.title = specialEnabled
+      ? "特殊方块：开（十字 / 凹字）"
+      : "特殊方块：关";
+    btnSpecial.textContent = "特殊";
+  }
+
+  function setSpecialEnabled(on) {
+    specialEnabled = !!on;
+    try {
+      localStorage.setItem(
+        SPECIAL_STORAGE_KEY,
+        specialEnabled ? "true" : "false"
+      );
+    } catch (_) {
+      /* ignore */
+    }
+    refreshSpecialButton();
+    if (!specialEnabled) {
+      scrubBagOfSpecial();
+    } else {
+      // Rebuild bag so 十字/凹字 can appear soon
+      bag = [];
+      refillBag();
+    }
+    drawBoard();
+  }
+
+  function toggleSpecial() {
+    setSpecialEnabled(!specialEnabled);
+  }
+
+  if (btnSpecial) {
+    btnSpecial.addEventListener("click", () => {
+      toggleSpecial();
+      btnSpecial.blur();
+    });
+  }
+  refreshSpecialButton();
+
   function refreshAutoButton() {
     if (!btnAuto) return;
     btnAuto.setAttribute("aria-pressed", autoMode ? "true" : "false");
@@ -1907,8 +2026,10 @@
   function restoreUiFromStorage() {
     autoMode = readAutoModeFromStorage();
     previewEnabled = readPreviewEnabledFromStorage();
+    specialEnabled = readSpecialEnabledFromStorage();
     refreshAutoButton();
     refreshPreviewButton();
+    refreshSpecialButton();
     refreshAudioButtons();
     drawNext();
     drawBoard();

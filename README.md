@@ -24,6 +24,10 @@ python3 -m http.server 8080
 
 Then visit http://localhost:8080/
 
+## 特殊方块
+
+侧边「特殊」开关可启用 **十字**（加号）与 **凹字**（U 形）；默认关闭，状态会记在本地。
+
 ## Controls
 
 | Key | Action |
