@@ -33,6 +33,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 html,
@@ -45,10 +46,14 @@ body {
     var(--bg);
   color: var(--text);
   font-family: var(--font);
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 body {
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: none;
 }
 
 .app {
