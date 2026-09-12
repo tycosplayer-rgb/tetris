@@ -706,8 +706,10 @@ kbd {
 
   .action-btns .btn-audio {
     min-height: 28px;
-    padding: 4px 4px;
-    font-size: 0.62rem;
+    padding: 4px 2px;
+    font-size: 0.58rem;
+    line-height: 1.15;
+    white-space: normal;
   }
 
   .btn-audio[aria-pressed="true"]::after,
