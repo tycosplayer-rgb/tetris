@@ -156,7 +156,7 @@
     masterGain.connect(ctx.destination);
 
     sfxGain = ctx.createGain();
-    sfxGain.gain.value = sfxEnabled ? 0.85 : 0;
+    sfxGain.gain.value = sfxEnabled ? 1.7 : 0;
     sfxGain.connect(masterGain);
     return ctx;
   }
@@ -165,7 +165,7 @@
     if (!sfxGain || !ctx) return;
     const now = ctx.currentTime;
     sfxGain.gain.cancelScheduledValues(now);
-    sfxGain.gain.setValueAtTime(sfxEnabled ? 0.85 : 0, now);
+    sfxGain.gain.setValueAtTime(sfxEnabled ? 1.7 : 0, now);
   }
 
   function resumeContext() {
@@ -389,7 +389,7 @@
     filter.Q.value = 0.8;
     const g = ctx.createGain();
     const t0 = ctx.currentTime;
-    g.gain.setValueAtTime(peak || 0.08, t0);
+    g.gain.setValueAtTime(peak || 0.14, t0);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(filter);
     filter.connect(g);
@@ -404,27 +404,27 @@
     const t = ctx.currentTime;
     switch (name) {
       case "move":
-        tone(420, 0.045, "triangle", sfxGain, t, 0.06, 0.004, 0.03);
+        tone(420, 0.045, "triangle", sfxGain, t, 0.11, 0.004, 0.03);
         break;
       case "rotate":
-        tone(520, 0.05, "square", sfxGain, t, 0.05, 0.004, 0.03);
-        tone(780, 0.06, "square", sfxGain, t + 0.03, 0.04, 0.004, 0.035);
+        tone(520, 0.05, "square", sfxGain, t, 0.1, 0.004, 0.03);
+        tone(780, 0.06, "square", sfxGain, t + 0.03, 0.08, 0.004, 0.035);
         break;
       case "soft": {
         const nowMs = performance.now();
         if (nowMs - lastSoftAt < 70) break;
         lastSoftAt = nowMs;
-        tone(280, 0.03, "triangle", sfxGain, t, 0.028, 0.003, 0.02);
+        tone(280, 0.03, "triangle", sfxGain, t, 0.055, 0.003, 0.02);
         break;
       }
       case "hard":
-        tone(180, 0.08, "sawtooth", sfxGain, t, 0.1, 0.004, 0.05);
-        tone(90, 0.12, "triangle", sfxGain, t + 0.02, 0.08, 0.005, 0.07);
-        noiseBurst(0.06, 0.05, 600);
+        tone(180, 0.08, "sawtooth", sfxGain, t, 0.18, 0.004, 0.05);
+        tone(90, 0.12, "triangle", sfxGain, t + 0.02, 0.14, 0.005, 0.07);
+        noiseBurst(0.06, 0.09, 600);
         break;
       case "lock":
-        tone(160, 0.07, "triangle", sfxGain, t, 0.07, 0.005, 0.04);
-        noiseBurst(0.04, 0.03, 900);
+        tone(160, 0.07, "triangle", sfxGain, t, 0.13, 0.005, 0.04);
+        noiseBurst(0.04, 0.06, 900);
         break;
       case "clear": {
         const n = Math.max(1, Math.min(4, detail | 0 || 1));
@@ -436,26 +436,26 @@
             "square",
             sfxGain,
             t + i * 0.055,
-            0.07,
+            0.13,
             0.006,
             0.06
           );
         }
         if (n >= 4) {
-          tone(880, 0.22, "triangle", sfxGain, t + 0.18, 0.08, 0.01, 0.1);
-          tone(1174, 0.28, "triangle", sfxGain, t + 0.26, 0.06, 0.01, 0.12);
+          tone(880, 0.22, "triangle", sfxGain, t + 0.18, 0.14, 0.01, 0.1);
+          tone(1174, 0.28, "triangle", sfxGain, t + 0.26, 0.11, 0.01, 0.12);
         }
         break;
       }
       case "level":
-        tone(523.25, 0.1, "square", sfxGain, t, 0.07, 0.008, 0.05);
-        tone(659.25, 0.12, "square", sfxGain, t + 0.1, 0.07, 0.008, 0.06);
-        tone(783.99, 0.16, "square", sfxGain, t + 0.2, 0.08, 0.008, 0.08);
+        tone(523.25, 0.1, "square", sfxGain, t, 0.13, 0.008, 0.05);
+        tone(659.25, 0.12, "square", sfxGain, t + 0.1, 0.13, 0.008, 0.06);
+        tone(783.99, 0.16, "square", sfxGain, t + 0.2, 0.15, 0.008, 0.08);
         break;
       case "over":
-        tone(392, 0.18, "sawtooth", sfxGain, t, 0.08, 0.01, 0.1);
-        tone(311, 0.22, "sawtooth", sfxGain, t + 0.14, 0.08, 0.01, 0.12);
-        tone(233, 0.35, "triangle", sfxGain, t + 0.3, 0.09, 0.01, 0.18);
+        tone(392, 0.18, "sawtooth", sfxGain, t, 0.15, 0.01, 0.1);
+        tone(311, 0.22, "sawtooth", sfxGain, t + 0.14, 0.15, 0.01, 0.12);
+        tone(233, 0.35, "triangle", sfxGain, t + 0.3, 0.16, 0.01, 0.18);
         break;
       default:
         break;
