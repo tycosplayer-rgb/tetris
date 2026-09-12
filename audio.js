@@ -354,8 +354,34 @@
       });
   }
 
+  // Limit concurrent Web Audio voices — fall SFX used to spawn unbounded
+  // oscillators until the browser silently stopped producing sound.
+  const MAX_SFX_VOICES = 14;
+  let activeVoices = 0;
+
+  function trackVoice(stopper, holdSec) {
+    if (activeVoices >= MAX_SFX_VOICES) {
+      try {
+        stopper();
+      } catch (_) {}
+      return false;
+    }
+    activeVoices++;
+    let released = false;
+    const done = () => {
+      if (released) return;
+      released = true;
+      activeVoices = Math.max(0, activeVoices - 1);
+    };
+    // Fallback timer in case ended never fires
+    setTimeout(done, Math.max(50, Math.ceil(holdSec * 1000) + 80));
+    return done;
+  }
+
   function tone(freq, dur, type, gainNode, when, peak, attack, release) {
     if (!ctx || !gainNode || !freq || freq <= 0) return;
+    if (ctx.state !== "running") return;
+    if (activeVoices >= MAX_SFX_VOICES) return;
     const t0 = when != null ? when : ctx.currentTime;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -364,17 +390,40 @@
     const pk = peak != null ? peak : 0.12;
     const atk = attack != null ? attack : 0.008;
     const rel = release != null ? release : Math.max(0.04, dur * 0.45);
+    const endAt = t0 + Math.max(atk + 0.01, dur) + 0.03;
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(pk, t0 + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(atk + 0.01, dur - rel));
     osc.connect(g);
     g.connect(gainNode);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.02);
+    const releaseVoice = trackVoice(() => {
+      try {
+        osc.stop(0);
+      } catch (_) {}
+    }, endAt - t0);
+    if (!releaseVoice) return;
+    const cleanup = () => {
+      try {
+        osc.disconnect();
+      } catch (_) {}
+      try {
+        g.disconnect();
+      } catch (_) {}
+      releaseVoice();
+    };
+    osc.onended = cleanup;
+    try {
+      osc.start(t0);
+      osc.stop(endAt);
+    } catch (_) {
+      cleanup();
+    }
   }
 
   function noiseBurst(dur, peak, filterFreq) {
     if (!ctx || !sfxGain || !sfxEnabled) return;
+    if (ctx.state !== "running") return;
+    if (activeVoices >= MAX_SFX_VOICES) return;
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -389,18 +438,42 @@
     filter.Q.value = 0.8;
     const g = ctx.createGain();
     const t0 = ctx.currentTime;
+    const endAt = t0 + dur + 0.03;
     g.gain.setValueAtTime(peak || 0.14, t0);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(filter);
     filter.connect(g);
     g.connect(sfxGain);
-    src.start(t0);
-    src.stop(t0 + dur + 0.02);
+    const releaseVoice = trackVoice(() => {
+      try {
+        src.stop(0);
+      } catch (_) {}
+    }, dur + 0.05);
+    if (!releaseVoice) return;
+    const cleanup = () => {
+      try {
+        src.disconnect();
+      } catch (_) {}
+      try {
+        filter.disconnect();
+      } catch (_) {}
+      try {
+        g.disconnect();
+      } catch (_) {}
+      releaseVoice();
+    };
+    src.onended = cleanup;
+    try {
+      src.start(t0);
+      src.stop(endAt);
+    } catch (_) {
+      cleanup();
+    }
   }
 
   function fireSfx(name, detail) {
     if (!ctx || !sfxGain) return;
-    applySfxGain();
+    if (ctx.state !== "running") return;
     const t = ctx.currentTime;
     switch (name) {
       case "move":
@@ -430,7 +503,7 @@
       // 口字：偏高、空灵（穿层感）
       case "fallK": {
         const nowMs = performance.now();
-        if (nowMs - lastSoftAt < 40) break;
+        if (nowMs - lastSoftAt < 90) break;
         lastSoftAt = nowMs;
         tone(980, 0.03, "sine", sfxGain, t, 0.07, 0.002, 0.022);
         break;
@@ -455,7 +528,7 @@
       // 日字：中音、短促金属感（打格感）
       case "fallR": {
         const nowMs = performance.now();
-        if (nowMs - lastSoftAt < 40) break;
+        if (nowMs - lastSoftAt < 90) break;
         lastSoftAt = nowMs;
         tone(520, 0.025, "square", sfxGain, t, 0.07, 0.002, 0.018);
         break;
@@ -481,7 +554,7 @@
       // 三格竖线：偏低、厚实脉冲（加格感）
       case "fallV": {
         const nowMs = performance.now();
-        if (nowMs - lastSoftAt < 40) break;
+        if (nowMs - lastSoftAt < 90) break;
         lastSoftAt = nowMs;
         tone(240, 0.035, "triangle", sfxGain, t, 0.08, 0.003, 0.025);
         break;
@@ -547,6 +620,28 @@
     }
   }
 
+  let resumeInFlight = null;
+
+  function ensureRunningContext() {
+    const c = ensureContext();
+    if (!c) return Promise.resolve(null);
+    if (c.state === "running") return Promise.resolve(c);
+    if (!resumeInFlight) {
+      resumeInFlight = c
+        .resume()
+        .then(() => {
+          resumeInFlight = null;
+          applySfxGain();
+          return c;
+        })
+        .catch(() => {
+          resumeInFlight = null;
+          return c;
+        });
+    }
+    return resumeInFlight;
+  }
+
   function playSfx(name, detail) {
     if (!sfxEnabled) return;
 
@@ -558,15 +653,14 @@
 
     const c = ensureContext();
     if (!c) return;
-    applySfxGain();
 
-    if (c.state === "suspended") {
-      // Wait for resume before firing tones so they aren't silent.
-      c.resume()
-        .then(() => {
-          if (sfxEnabled) fireSfx(name, detail);
-        })
-        .catch(() => {});
+    if (c.state === "suspended" || c.state === "interrupted") {
+      // Resume once; fire after so tones aren't scheduled into a dead context.
+      ensureRunningContext().then((running) => {
+        if (sfxEnabled && running && running.state === "running") {
+          fireSfx(name, detail);
+        }
+      });
       return;
     }
 
