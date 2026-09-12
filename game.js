@@ -24,6 +24,7 @@
     K: "#ffe566", // 口字 single
     R: "#ff8a5c", // 日字
     V: "#c084fc", // 三格竖线
+    B: "#ff3b30", // 炸弹
     GHOST: "rgba(255,255,255,0.18)",
     GRID: "#141a24",
   };
@@ -252,11 +253,37 @@
       [[1], [1], [1]],
       [[1], [1], [1]],
     ],
+    // 炸弹：田 + 左上/右上两点
+    B: [
+      [
+        [1, 0, 0, 1],
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+      ],
+      [
+        [0, 0, 1],
+        [1, 1, 0],
+        [1, 1, 0],
+        [0, 0, 1],
+      ],
+      [
+        [0, 1, 1, 0],
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+      ],
+      [
+        [1, 0, 0],
+        [0, 1, 1],
+        [0, 1, 1],
+        [1, 0, 0],
+      ],
+    ],
   };
 
   const BASE_TYPES = ["I", "O", "T", "S", "Z", "J", "L"];
   const SPECIAL_TYPES = ["P", "U"]; // 十字、凹字
   const SPECIAL2_TYPES = ["K", "R", "V"]; // 口字、日字、三格竖线
+  const BOMB_TYPES = ["B"]; // 炸弹
   const TYPES = Object.keys(SHAPES);
 
   // Basic wall-kick offsets (simplified SRS-like)
@@ -407,6 +434,7 @@
   const btnPreview = document.getElementById("btn-preview");
   const btnSpecial = document.getElementById("btn-special");
   const btnSpecial2 = document.getElementById("btn-special2");
+  const btnBomb = document.getElementById("btn-bomb");
   const nextCard = document.querySelector(".next-card");
   const btnAuto = document.getElementById("btn-auto");
 
@@ -444,6 +472,7 @@
   const PREVIEW_STORAGE_KEY = "tetris-ghost-enabled"; // gray landing-position ghost
   const SPECIAL_STORAGE_KEY = "tetris-special-pieces"; // 十字 / 凹字
   const SPECIAL2_STORAGE_KEY = "tetris-special2-pieces"; // 口 / 日 / 竖
+  const BOMB_STORAGE_KEY = "tetris-bomb-pieces"; // 炸弹
 
   function readAutoModeFromStorage() {
     try {
@@ -489,11 +518,21 @@
     }
   }
 
+  function readBombEnabledFromStorage() {
+    try {
+      return localStorage.getItem(BOMB_STORAGE_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
   let autoMode = readAutoModeFromStorage();
   let autoBusy = false; // prevent re-entry while placing
   let previewEnabled = readPreviewEnabledFromStorage();
   let specialEnabled = readSpecialEnabledFromStorage();
   let special2Enabled = readSpecial2EnabledFromStorage();
+  let bombEnabled = readBombEnabledFromStorage();
+  let boomFx = null; // { cells, start, dur } explosion flash
 
   function emptyGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -503,6 +542,7 @@
     const pieces = [...BASE_TYPES];
     if (specialEnabled) pieces.push(...SPECIAL_TYPES);
     if (special2Enabled) pieces.push(...SPECIAL2_TYPES);
+    if (bombEnabled) pieces.push(...BOMB_TYPES);
     return pieces;
   }
 
@@ -529,6 +569,14 @@
 
   function scrubBagOfSpecial2() {
     scrubBagOfTypes(SPECIAL2_TYPES);
+  }
+
+  function scrubBagOfBomb() {
+    scrubBagOfTypes(BOMB_TYPES);
+  }
+
+  function isBombPiece(type) {
+    return type === "B";
   }
 
   function isPhasePiece(type) {
@@ -592,6 +640,7 @@
     if (type === "I") return 3;
     if (type === "K") return 4;
     if (type === "R" || type === "V") return 4;
+    if (type === "B") return 3;
     return 3;
   }
 
@@ -635,9 +684,97 @@
     return true;
   }
 
+  function shapeHeight(piece) {
+    const cells = cellsOf(piece);
+    if (!cells.length) return 0;
+    let minY = cells[0].y;
+    let maxY = cells[0].y;
+    for (const c of cells) {
+      if (c.y < minY) minY = c.y;
+      if (c.y > maxY) maxY = c.y;
+    }
+    return maxY - minY + 1;
+  }
+
+  function projectionCols(piece) {
+    const cells = cellsOf(piece);
+    const set = new Set();
+    for (const c of cells) set.add(c.x);
+    return [...set].sort((a, b) => a - b);
+  }
+
+  /** First contacted solid row under the piece (min y among supports), or null if only floor. */
+  function bombContactRow(piece) {
+    const cells = cellsOf(piece);
+    const bottomByCol = new Map();
+    for (const { x, y } of cells) {
+      const prev = bottomByCol.get(x);
+      if (prev === undefined || y > prev) bottomByCol.set(x, y);
+    }
+    let contact = null;
+    for (const [col, bottomY] of bottomByCol) {
+      const solid = firstSolidBelow(col, bottomY);
+      if (solid !== null) {
+        contact = contact === null ? solid : Math.min(contact, solid);
+      }
+    }
+    return contact;
+  }
+
+  function detonateBomb(piece) {
+    const cols = projectionCols(piece);
+    if (!cols.length) {
+      dismissCurrentPiece();
+      return;
+    }
+    const minX = cols[0];
+    const maxX = cols[cols.length - 1];
+    const depth = shapeHeight(piece);
+    let contactY = bombContactRow(piece);
+    // Floor contact: start depth rows up from the bottom of the board under the projection
+    if (contactY === null) {
+      contactY = Math.max(0, ROWS - depth);
+    }
+
+    const blastCells = [];
+    let clearedBlocks = 0;
+    for (let r = contactY; r < contactY + depth && r < ROWS; r++) {
+      if (r < 0) continue;
+      for (let c = minX; c <= maxX; c++) {
+        if (c < 0 || c >= COLS) continue;
+        if (grid[r][c]) {
+          grid[r][c] = null;
+          clearedBlocks++;
+        }
+        blastCells.push({ x: c, y: r });
+      }
+    }
+
+    boomFx = {
+      cells: blastCells,
+      start: performance.now(),
+      dur: 420,
+    };
+    if (clearedBlocks > 0) {
+      score += clearedBlocks * 25 * level;
+      updateHUD();
+    }
+    sfx("boom", clearedBlocks);
+    clearLines();
+    current = null;
+    spawnNext();
+    drawBoard();
+  }
+
   function lockPiece(opts) {
     const fromHard = opts && opts.fromHard;
     if (!current) return;
+
+    // 炸弹：接触后按投影宽 × 形状高，从首个接触块往下爆炸
+    if (isBombPiece(current.type)) {
+      detonateBomb(current);
+      return;
+    }
 
     // 日字 / 三格竖线: contacting another block → vanish
     if (isVanishPiece(current.type)) {
@@ -1115,8 +1252,8 @@
         }
         return;
       }
-      if (isVanishPiece(current.type)) {
-        // Drop until contact then vanish; use one hard-drop cycle
+      if (isVanishPiece(current.type) || isBombPiece(current.type)) {
+        // Drop until contact then vanish / detonate
         hardDrop();
         return;
       }
@@ -1214,6 +1351,26 @@
       for (let c = 0; c < COLS; c++) {
         const t = grid[r][c];
         if (t) drawBlock(boardCtx, c, r, COLORS[t], BLOCK);
+      }
+    }
+
+    // bomb explosion flash
+    if (boomFx) {
+      const age = performance.now() - boomFx.start;
+      if (age >= boomFx.dur) {
+        boomFx = null;
+      } else {
+        const t = age / boomFx.dur;
+        const pulse = 0.35 + 0.65 * Math.sin(t * Math.PI);
+        for (const cell of boomFx.cells) {
+          const x = cell.x * BLOCK;
+          const y = cell.y * BLOCK;
+          boardCtx.fillStyle = `rgba(255, ${Math.floor(80 + 100 * (1 - t))}, 40, ${0.85 * (1 - t) * pulse})`;
+          boardCtx.fillRect(x, y, BLOCK, BLOCK);
+          boardCtx.strokeStyle = `rgba(255, 255, 200, ${0.9 * (1 - t)})`;
+          boardCtx.lineWidth = 2;
+          boardCtx.strokeRect(x + 1, y + 1, BLOCK - 2, BLOCK - 2);
+        }
       }
     }
 
@@ -1588,6 +1745,42 @@
     });
   }
   refreshSpecial2Button();
+
+  function refreshBombButton() {
+    if (!btnBomb) return;
+    btnBomb.setAttribute("aria-pressed", bombEnabled ? "true" : "false");
+    btnBomb.title = bombEnabled ? "炸弹：开" : "炸弹：关";
+    btnBomb.textContent = "炸弹";
+  }
+
+  function setBombEnabled(on) {
+    bombEnabled = !!on;
+    try {
+      localStorage.setItem(BOMB_STORAGE_KEY, bombEnabled ? "true" : "false");
+    } catch (_) {
+      /* ignore */
+    }
+    refreshBombButton();
+    if (!bombEnabled) {
+      scrubBagOfBomb();
+    } else {
+      bag = [];
+      refillBag();
+    }
+    drawBoard();
+  }
+
+  function toggleBomb() {
+    setBombEnabled(!bombEnabled);
+  }
+
+  if (btnBomb) {
+    btnBomb.addEventListener("click", () => {
+      toggleBomb();
+      btnBomb.blur();
+    });
+  }
+  refreshBombButton();
 
   function refreshAutoButton() {
     if (!btnAuto) return;
@@ -2311,10 +2504,12 @@
     previewEnabled = readPreviewEnabledFromStorage();
     specialEnabled = readSpecialEnabledFromStorage();
     special2Enabled = readSpecial2EnabledFromStorage();
+    bombEnabled = readBombEnabledFromStorage();
     refreshAutoButton();
     refreshPreviewButton();
     refreshSpecialButton();
     refreshSpecial2Button();
+    refreshBombButton();
     refreshAudioButtons();
     drawNext();
     drawBoard();

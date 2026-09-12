@@ -113,3 +113,7 @@ SFX stays a simple click toggle. On boot, `restoreUiFromStorage()` refreshes aut
 ## License
 
 MIT © 2026 tycosplayer-rgb — see [`LICENSE`](LICENSE).
+
+## 炸弹方块
+
+侧边最下方「炸弹」开关（默认关）可启用炸弹块：形状为 **田** 且左上、右上各一点。落地接触后爆炸——宽度为向下投影宽度，深度为形状高度，从接触到的第一个方块往下清除，并播放闪光特效。

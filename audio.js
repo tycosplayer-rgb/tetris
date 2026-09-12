@@ -452,6 +452,13 @@
         tone(659.25, 0.12, "square", sfxGain, t + 0.1, 0.13, 0.008, 0.06);
         tone(783.99, 0.16, "square", sfxGain, t + 0.2, 0.15, 0.008, 0.08);
         break;
+      case "boom":
+        noiseBurst(0.18, 0.22, 400);
+        tone(120, 0.16, "sawtooth", sfxGain, t, 0.22, 0.004, 0.1);
+        tone(70, 0.28, "triangle", sfxGain, t + 0.04, 0.18, 0.008, 0.16);
+        tone(220, 0.1, "square", sfxGain, t + 0.08, 0.1, 0.004, 0.08);
+        noiseBurst(0.12, 0.14, 900);
+        break;
       case "over":
         tone(392, 0.18, "sawtooth", sfxGain, t, 0.15, 0.01, 0.1);
         tone(311, 0.22, "sawtooth", sfxGain, t + 0.14, 0.15, 0.01, 0.12);
