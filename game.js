@@ -591,6 +591,13 @@
     return SPECIAL2_TYPES.includes(type);
   }
 
+  /** Per-piece SFX name for 加减方块: fall|soft|hard|lock + K|R|V */
+  function addSubSfx(kind, type) {
+    const t = type || (current && current.type);
+    if (t === "K" || t === "R" || t === "V") return kind + t;
+    return kind === "fall" ? null : kind;
+  }
+
   function lowestEmptyInCol(col) {
     if (col < 0 || col >= COLS) return null;
     for (let r = ROWS - 1; r >= 0; r--) {
@@ -628,9 +635,9 @@
 
   function dismissCurrentPiece() {
     // Vanish without locking into the grid
-    const wasAddSub = current && isAddSubPiece(current.type);
+    const t = current && current.type;
     current = null;
-    sfx(wasAddSub ? "lock2" : "lock");
+    sfx(addSubSfx("lock", t) || "lock");
     spawnNext();
   }
 
@@ -812,7 +819,7 @@
       grid[y][x] = current.type;
     }
     if (!fromHard) {
-      sfx(isAddSubPiece(current.type) ? "lock2" : "lock");
+      sfx(addSubSfx("lock", current.type) || "lock");
     }
     clearLines();
     spawnNext();
@@ -852,14 +859,15 @@
       endGame();
       return;
     }
-    // 加减方块出场轻提示，避免和普通块外形混淆
-    if (isAddSubPiece(current.type)) sfx("fall2");
+    // 加减方块出场轻提示（各块音色不同）
+    const tip = addSubSfx("fall", current.type);
+    if (tip) sfx(tip);
     drawNext();
   }
 
   function softDrop() {
     if (!current || gameOver || paused) return;
-    const dropSfx = isAddSubPiece(current.type) ? "soft2" : "soft";
+    const dropSfx = addSubSfx("soft", current.type) || "soft";
     if (isPhasePiece(current.type)) {
       if (current.y + 1 < ROWS) {
         current.y++;
@@ -883,7 +891,7 @@
 
   function hardDrop() {
     if (!current || gameOver || paused) return;
-    const dropSfx = isAddSubPiece(current.type) ? "hard2" : "hard";
+    const dropSfx = addSubSfx("hard", current.type) || "hard";
     if (isPhasePiece(current.type)) {
       const target = lowestEmptyInCol(current.x);
       if (target === null) {
@@ -1574,14 +1582,20 @@
       if (isPhasePiece(current.type)) {
         if (current.y + 1 < ROWS) {
           current.y++;
-          if (isAddSubPiece(current.type)) sfx("fall2");
+          {
+            const f = addSubSfx("fall", current.type);
+            if (f) sfx(f);
+          }
         } else {
           lockPiece();
           break;
         }
       } else if (valid(current, 0, 1)) {
         current.y++;
-        if (isAddSubPiece(current.type)) sfx("fall2");
+        {
+          const f = addSubSfx("fall", current.type);
+          if (f) sfx(f);
+        }
       } else {
         lockPiece();
         break;

@@ -426,35 +426,83 @@
         tone(160, 0.07, "triangle", sfxGain, t, 0.13, 0.005, 0.04);
         noiseBurst(0.04, 0.06, 900);
         break;
-      // 加减方块专属下落/落地：更亮、带滑音，和普通块区分开
-      case "soft2": {
-        const nowMs = performance.now();
-        if (nowMs - lastSoftAt < 55) break;
-        lastSoftAt = nowMs;
-        tone(640, 0.035, "sine", sfxGain, t, 0.09, 0.002, 0.025);
-        tone(960, 0.04, "triangle", sfxGain, t + 0.012, 0.06, 0.002, 0.03);
-        break;
-      }
-      // 加减方块自然下落（重力每格）：轻嘀，便于和普通块区分
-      case "fall2": {
+      // —— 加减方块：口字 K / 日字 R / 三格竖线 V 各自差异化 ——
+      // 口字：偏高、空灵（穿层感）
+      case "fallK": {
         const nowMs = performance.now();
         if (nowMs - lastSoftAt < 40) break;
         lastSoftAt = nowMs;
-        tone(760, 0.028, "sine", sfxGain, t, 0.08, 0.002, 0.02);
-        tone(1140, 0.03, "triangle", sfxGain, t + 0.01, 0.05, 0.002, 0.022);
+        tone(980, 0.03, "sine", sfxGain, t, 0.07, 0.002, 0.022);
         break;
       }
-      case "hard2":
-        tone(720, 0.06, "square", sfxGain, t, 0.16, 0.003, 0.04);
-        tone(480, 0.09, "sawtooth", sfxGain, t + 0.025, 0.14, 0.004, 0.06);
-        tone(240, 0.12, "triangle", sfxGain, t + 0.05, 0.12, 0.005, 0.08);
-        noiseBurst(0.05, 0.07, 1200);
+      case "softK": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 50) break;
+        lastSoftAt = nowMs;
+        tone(880, 0.04, "sine", sfxGain, t, 0.1, 0.002, 0.03);
+        tone(1320, 0.045, "triangle", sfxGain, t + 0.015, 0.06, 0.002, 0.03);
         break;
-      case "lock2":
-        tone(880, 0.05, "sine", sfxGain, t, 0.14, 0.003, 0.03);
-        tone(660, 0.08, "triangle", sfxGain, t + 0.03, 0.12, 0.004, 0.05);
-        tone(330, 0.1, "square", sfxGain, t + 0.06, 0.08, 0.004, 0.07);
-        noiseBurst(0.045, 0.05, 1400);
+      }
+      case "hardK":
+        tone(1100, 0.07, "sine", sfxGain, t, 0.14, 0.003, 0.05);
+        tone(1650, 0.08, "triangle", sfxGain, t + 0.03, 0.1, 0.003, 0.06);
+        noiseBurst(0.04, 0.05, 1800);
+        break;
+      case "lockK":
+        tone(1200, 0.06, "sine", sfxGain, t, 0.12, 0.003, 0.04);
+        tone(900, 0.09, "triangle", sfxGain, t + 0.04, 0.09, 0.004, 0.06);
+        break;
+      // 日字：中音、短促金属感（打格感）
+      case "fallR": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 40) break;
+        lastSoftAt = nowMs;
+        tone(520, 0.025, "square", sfxGain, t, 0.07, 0.002, 0.018);
+        break;
+      }
+      case "softR": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 50) break;
+        lastSoftAt = nowMs;
+        tone(560, 0.035, "square", sfxGain, t, 0.09, 0.002, 0.025);
+        tone(840, 0.03, "square", sfxGain, t + 0.018, 0.05, 0.002, 0.02);
+        break;
+      }
+      case "hardR":
+        tone(400, 0.07, "square", sfxGain, t, 0.15, 0.003, 0.045);
+        tone(600, 0.08, "sawtooth", sfxGain, t + 0.03, 0.12, 0.004, 0.05);
+        noiseBurst(0.05, 0.07, 1000);
+        break;
+      case "lockR":
+        tone(700, 0.05, "square", sfxGain, t, 0.12, 0.003, 0.035);
+        tone(350, 0.1, "triangle", sfxGain, t + 0.035, 0.1, 0.004, 0.07);
+        noiseBurst(0.035, 0.045, 1100);
+        break;
+      // 三格竖线：偏低、厚实脉冲（加格感）
+      case "fallV": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 40) break;
+        lastSoftAt = nowMs;
+        tone(240, 0.035, "triangle", sfxGain, t, 0.08, 0.003, 0.025);
+        break;
+      }
+      case "softV": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 50) break;
+        lastSoftAt = nowMs;
+        tone(220, 0.04, "triangle", sfxGain, t, 0.1, 0.003, 0.03);
+        tone(330, 0.045, "sawtooth", sfxGain, t + 0.02, 0.06, 0.003, 0.03);
+        break;
+      }
+      case "hardV":
+        tone(160, 0.09, "sawtooth", sfxGain, t, 0.16, 0.004, 0.06);
+        tone(100, 0.14, "triangle", sfxGain, t + 0.04, 0.14, 0.005, 0.09);
+        noiseBurst(0.06, 0.08, 500);
+        break;
+      case "lockV":
+        tone(180, 0.08, "triangle", sfxGain, t, 0.13, 0.004, 0.05);
+        tone(90, 0.12, "sine", sfxGain, t + 0.05, 0.1, 0.005, 0.08);
+        noiseBurst(0.04, 0.05, 600);
         break;
       case "clear": {
         const n = Math.max(1, Math.min(4, detail | 0 || 1));
