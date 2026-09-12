@@ -852,6 +852,8 @@
       endGame();
       return;
     }
+    // 加减方块出场轻提示，避免和普通块外形混淆
+    if (isAddSubPiece(current.type)) sfx("fall2");
     drawNext();
   }
 
@@ -1572,12 +1574,14 @@
       if (isPhasePiece(current.type)) {
         if (current.y + 1 < ROWS) {
           current.y++;
+          if (isAddSubPiece(current.type)) sfx("fall2");
         } else {
           lockPiece();
           break;
         }
       } else if (valid(current, 0, 1)) {
         current.y++;
+        if (isAddSubPiece(current.type)) sfx("fall2");
       } else {
         lockPiece();
         break;

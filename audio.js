@@ -435,6 +435,15 @@
         tone(960, 0.04, "triangle", sfxGain, t + 0.012, 0.06, 0.002, 0.03);
         break;
       }
+      // 加减方块自然下落（重力每格）：轻嘀，便于和普通块区分
+      case "fall2": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 40) break;
+        lastSoftAt = nowMs;
+        tone(760, 0.028, "sine", sfxGain, t, 0.08, 0.002, 0.02);
+        tone(1140, 0.03, "triangle", sfxGain, t + 0.01, 0.05, 0.002, 0.022);
+        break;
+      }
       case "hard2":
         tone(720, 0.06, "square", sfxGain, t, 0.16, 0.003, 0.04);
         tone(480, 0.09, "sawtooth", sfxGain, t + 0.025, 0.14, 0.004, 0.06);
