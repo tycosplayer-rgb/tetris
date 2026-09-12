@@ -587,6 +587,10 @@
     return type === "R" || type === "V";
   }
 
+  function isAddSubPiece(type) {
+    return SPECIAL2_TYPES.includes(type);
+  }
+
   function lowestEmptyInCol(col) {
     if (col < 0 || col >= COLS) return null;
     for (let r = ROWS - 1; r >= 0; r--) {
@@ -624,8 +628,9 @@
 
   function dismissCurrentPiece() {
     // Vanish without locking into the grid
+    const wasAddSub = current && isAddSubPiece(current.type);
     current = null;
-    sfx("lock");
+    sfx(wasAddSub ? "lock2" : "lock");
     spawnNext();
   }
 
@@ -806,7 +811,9 @@
       }
       grid[y][x] = current.type;
     }
-    if (!fromHard) sfx("lock");
+    if (!fromHard) {
+      sfx(isAddSubPiece(current.type) ? "lock2" : "lock");
+    }
     clearLines();
     spawnNext();
   }
@@ -850,12 +857,13 @@
 
   function softDrop() {
     if (!current || gameOver || paused) return;
+    const dropSfx = isAddSubPiece(current.type) ? "soft2" : "soft";
     if (isPhasePiece(current.type)) {
       if (current.y + 1 < ROWS) {
         current.y++;
         score += 1;
         updateHUD();
-        sfx("soft");
+        sfx(dropSfx);
       } else {
         lockPiece();
       }
@@ -865,7 +873,7 @@
       current.y++;
       score += 1;
       updateHUD();
-      sfx("soft");
+      sfx(dropSfx);
     } else {
       lockPiece();
     }
@@ -873,10 +881,11 @@
 
   function hardDrop() {
     if (!current || gameOver || paused) return;
+    const dropSfx = isAddSubPiece(current.type) ? "hard2" : "hard";
     if (isPhasePiece(current.type)) {
       const target = lowestEmptyInCol(current.x);
       if (target === null) {
-        sfx("hard");
+        sfx(dropSfx);
         dismissCurrentPiece();
         return;
       }
@@ -884,7 +893,7 @@
       current.y = target;
       score += dist * 2;
       updateHUD();
-      sfx("hard");
+      sfx(dropSfx);
       lockPiece({ fromHard: true });
       return;
     }
@@ -893,7 +902,7 @@
     current.y += dist;
     score += dist * 2;
     updateHUD();
-    sfx("hard");
+    sfx(dropSfx);
     lockPiece({ fromHard: true });
   }
 

@@ -426,6 +426,27 @@
         tone(160, 0.07, "triangle", sfxGain, t, 0.13, 0.005, 0.04);
         noiseBurst(0.04, 0.06, 900);
         break;
+      // 加减方块专属下落/落地：更亮、带滑音，和普通块区分开
+      case "soft2": {
+        const nowMs = performance.now();
+        if (nowMs - lastSoftAt < 55) break;
+        lastSoftAt = nowMs;
+        tone(640, 0.035, "sine", sfxGain, t, 0.09, 0.002, 0.025);
+        tone(960, 0.04, "triangle", sfxGain, t + 0.012, 0.06, 0.002, 0.03);
+        break;
+      }
+      case "hard2":
+        tone(720, 0.06, "square", sfxGain, t, 0.16, 0.003, 0.04);
+        tone(480, 0.09, "sawtooth", sfxGain, t + 0.025, 0.14, 0.004, 0.06);
+        tone(240, 0.12, "triangle", sfxGain, t + 0.05, 0.12, 0.005, 0.08);
+        noiseBurst(0.05, 0.07, 1200);
+        break;
+      case "lock2":
+        tone(880, 0.05, "sine", sfxGain, t, 0.14, 0.003, 0.03);
+        tone(660, 0.08, "triangle", sfxGain, t + 0.03, 0.12, 0.004, 0.05);
+        tone(330, 0.1, "square", sfxGain, t + 0.06, 0.08, 0.004, 0.07);
+        noiseBurst(0.045, 0.05, 1400);
+        break;
       case "clear": {
         const n = Math.max(1, Math.min(4, detail | 0 || 1));
         const base = 440;
