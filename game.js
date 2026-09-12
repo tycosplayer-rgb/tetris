@@ -1664,9 +1664,9 @@
     if (!btnSpecial) return;
     btnSpecial.setAttribute("aria-pressed", specialEnabled ? "true" : "false");
     btnSpecial.title = specialEnabled
-      ? "特殊方块：开（十字 / 凹字）"
-      : "特殊方块：关";
-    btnSpecial.textContent = "特殊";
+      ? "讨厌方块：开（十字 / 凹字）"
+      : "讨厌方块：关";
+    btnSpecial.textContent = "讨厌方块";
   }
 
   function setSpecialEnabled(on) {
@@ -1709,9 +1709,9 @@
       special2Enabled ? "true" : "false"
     );
     btnSpecial2.title = special2Enabled
-      ? "特殊2：开（口字 / 日字 / 三格竖线）"
-      : "特殊2：关";
-    btnSpecial2.textContent = "特殊2";
+      ? "加减方块：开（口字 / 日字 / 三格竖线）"
+      : "加减方块：关";
+    btnSpecial2.textContent = "加减方块";
   }
 
   function setSpecial2Enabled(on) {
