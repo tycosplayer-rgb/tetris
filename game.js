@@ -791,33 +791,30 @@
       return;
     }
 
-    // 三格竖线: shape unchanged; fill the nearest empty cell below in this column
-    // (通常是脚下紧挨一格；若被挡住则落到该列更下方的空隙)
+    // 三格竖线: shape unchanged; add one cell at the lowest spot directly below
+    // (落在该列正下方、可贴地/可贴堆顶的最低空位，不悬空)
     if (current.type === "V") {
       const bottom = pieceBottomCell(current);
       const tx = bottom.x;
-      let ty = null;
-      // Prefer the immediate cell below when empty; otherwise first empty below.
+      const solid = firstSolidBelow(tx, bottom.y);
+      // On top of the first solid below, or on the floor if none
+      let ty = solid !== null ? solid - 1 : ROWS - 1;
+      const self = new Set(cellsOf(current).map((c) => c.x + "," + c.y));
+      // Must be strictly below the piece, in-bounds, empty, not overlapping self
       if (
-        bottom.y + 1 < ROWS &&
-        bottom.y + 1 >= 0 &&
-        !grid[bottom.y + 1][tx]
+        ty > bottom.y &&
+        ty >= 0 &&
+        ty < ROWS &&
+        !grid[ty][tx] &&
+        !self.has(tx + "," + ty)
       ) {
-        ty = bottom.y + 1;
-      } else {
-        ty = firstEmptyBelow(tx, bottom.y);
-      }
-      if (ty !== null) {
-        const self = new Set(cellsOf(current).map((c) => c.x + "," + c.y));
-        if (!self.has(tx + "," + ty)) {
-          grid[ty][tx] = "V";
-          score += 10 * level;
-          updateHUD();
-          clearLines();
-          sfx("lock");
-          drawBoard();
-          return;
-        }
+        grid[ty][tx] = "V";
+        score += 10 * level;
+        updateHUD();
+        clearLines();
+        sfx("lock");
+        drawBoard();
+        return;
       }
       sfx("rotate");
       drawBoard();
