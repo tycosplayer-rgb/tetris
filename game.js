@@ -21,6 +21,9 @@
     L: "#f0a000",
     P: "#ff5ec8", // 十字 plus
     U: "#5ee7ff", // 凹字 U
+    G: "#9ae66e", // 缺口田
+    H: "#ff9f43", // 厚Z
+    N: "#54a0ff", // 反相厚Z
     K: "#ffe566", // 口字 single
     R: "#ff8a5c", // 日字
     V: "#c084fc", // 三格竖线
@@ -232,6 +235,71 @@
         [0, 1, 1],
       ],
     ],
+    // 缺口田 (L tromino / missing-corner square)
+    G: [
+      [
+        [1, 1],
+        [1, 0],
+      ],
+      [
+        [1, 1],
+        [0, 1],
+      ],
+      [
+        [0, 1],
+        [1, 1],
+      ],
+      [
+        [1, 0],
+        [1, 1],
+      ],
+    ],
+    // 厚Z (Z pentomino)
+    H: [
+      [
+        [1, 1, 0],
+        [0, 1, 0],
+        [0, 1, 1],
+      ],
+      [
+        [0, 0, 1],
+        [1, 1, 1],
+        [1, 0, 0],
+      ],
+      [
+        [1, 1, 0],
+        [0, 1, 0],
+        [0, 1, 1],
+      ],
+      [
+        [0, 0, 1],
+        [1, 1, 1],
+        [1, 0, 0],
+      ],
+    ],
+    // 反相厚Z (S pentomino / mirror of H)
+    N: [
+      [
+        [0, 1, 1],
+        [0, 1, 0],
+        [1, 1, 0],
+      ],
+      [
+        [1, 0, 0],
+        [1, 1, 1],
+        [0, 0, 1],
+      ],
+      [
+        [0, 1, 1],
+        [0, 1, 0],
+        [1, 1, 0],
+      ],
+      [
+        [1, 0, 0],
+        [1, 1, 1],
+        [0, 0, 1],
+      ],
+    ],
     // 口字 — single cell (special2)
     K: [
       [[1]],
@@ -281,7 +349,7 @@
   };
 
   const BASE_TYPES = ["I", "O", "T", "S", "Z", "J", "L"];
-  const SPECIAL_TYPES = ["P", "U"]; // 十字、凹字
+  const SPECIAL_TYPES = ["P", "U", "G", "H", "N"]; // 十字、凹字、缺口田、厚Z、反相厚Z
   const SPECIAL2_TYPES = ["K", "R", "V"]; // 口字、日字、三格竖线
   const BOMB_TYPES = ["B"]; // 炸弹
   const TYPES = Object.keys(SHAPES);
@@ -470,7 +538,7 @@
 
   const AUTO_STORAGE_KEY = "tetris-auto-mode";
   const PREVIEW_STORAGE_KEY = "tetris-ghost-enabled"; // gray landing-position ghost
-  const SPECIAL_STORAGE_KEY = "tetris-special-pieces"; // 十字 / 凹字
+  const SPECIAL_STORAGE_KEY = "tetris-special-pieces"; // 十字 / 凹字 / 缺口田 / 厚Z
   const SPECIAL2_STORAGE_KEY = "tetris-special2-pieces"; // 口 / 日 / 竖
   const BOMB_STORAGE_KEY = "tetris-bomb-pieces"; // 炸弹
 
@@ -1691,7 +1759,7 @@
     if (!btnSpecial) return;
     btnSpecial.setAttribute("aria-pressed", specialEnabled ? "true" : "false");
     btnSpecial.title = specialEnabled
-      ? "讨厌方块：开（十字 / 凹字）"
+      ? "讨厌方块：开（十字 / 凹字 / 缺口田 / 厚Z）"
       : "讨厌方块：关";
     btnSpecial.textContent = "讨厌方块";
   }
