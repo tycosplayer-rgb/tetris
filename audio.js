@@ -769,9 +769,23 @@
     window.addEventListener(ev, onFirstGesture, gestureOpts);
   });
 
-  // Resume BGM when tab becomes visible again if music should be playing.
+  // Pause BGM when leaving the tab/app; resume on return if the game is active.
   // Prefer flags over bgmWantPlay — stopBgm clears that flag.
+  function pauseBgmForLeave() {
+    // Keep playhead; do not reset. Resume uses syncBgm()/startBgm().
+    if (bgmAudio && !bgmAudio.paused) {
+      try {
+        bgmAudio.pause();
+      } catch (_) {}
+    }
+    bgmWantPlay = false;
+  }
+
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      pauseBgmForLeave();
+      return;
+    }
     if (
       document.visibilityState === "visible" &&
       bgmEnabled &&
@@ -780,6 +794,11 @@
     ) {
       syncBgm();
     }
+  });
+
+  // Mobile Safari / bfcache: also pause on pagehide.
+  window.addEventListener("pagehide", () => {
+    pauseBgmForLeave();
   });
 
   window.TetrisAudio = {
