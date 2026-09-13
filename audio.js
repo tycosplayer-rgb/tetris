@@ -63,16 +63,16 @@
    * `base` is the stem (01…10); extension chosen at runtime.
    */
   const BGM_TRACKS = [
-    { name: "轻快", base: "01", volume: 0.45 },
-    { name: "沉稳", base: "02", volume: 0.45 },
-    { name: "电子", base: "03", volume: 0.4 },
-    { name: "像素", base: "04", volume: 0.42 },
-    { name: "梦幻", base: "05", volume: 0.48 },
-    { name: "紧张", base: "06", volume: 0.4 },
-    { name: "探索", base: "07", volume: 0.42 },
-    { name: "夜行", base: "08", volume: 0.45 },
-    { name: "赛博", base: "09", volume: 0.4 },
-    { name: "田园", base: "10", volume: 0.48 },
+    { name: "轻快", base: "01", volume: 0.32 },
+    { name: "沉稳", base: "02", volume: 0.32 },
+    { name: "电子", base: "03", volume: 0.28 },
+    { name: "像素", base: "04", volume: 0.30 },
+    { name: "梦幻", base: "05", volume: 0.34 },
+    { name: "紧张", base: "06", volume: 0.28 },
+    { name: "探索", base: "07", volume: 0.30 },
+    { name: "夜行", base: "08", volume: 0.32 },
+    { name: "赛博", base: "09", volume: 0.28 },
+    { name: "田园", base: "10", volume: 0.34 },
   ];
 
   function readFlag(key, fallback) {
@@ -156,7 +156,7 @@
     masterGain.connect(ctx.destination);
 
     sfxGain = ctx.createGain();
-    sfxGain.gain.value = sfxEnabled ? 1.7 : 0;
+    sfxGain.gain.value = sfxEnabled ? 2.5 : 0;
     sfxGain.connect(masterGain);
     return ctx;
   }
@@ -165,7 +165,7 @@
     if (!sfxGain || !ctx) return;
     const now = ctx.currentTime;
     sfxGain.gain.cancelScheduledValues(now);
-    sfxGain.gain.setValueAtTime(sfxEnabled ? 1.7 : 0, now);
+    sfxGain.gain.setValueAtTime(sfxEnabled ? 2.5 : 0, now);
   }
 
   function resumeContext() {
@@ -182,7 +182,7 @@
     const a = new Audio();
     a.loop = true;
     a.preload = "auto";
-    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.32;
     a.addEventListener("error", () => {
       const failedFile = currentFile(bgmActiveExt);
       const errMsg = a.error && a.error.message;
@@ -248,7 +248,7 @@
     const url = musicUrl(file);
     bgmLoadError = false;
     a.loop = true;
-    a.volume = tr.volume != null ? tr.volume : 0.45;
+    a.volume = tr.volume != null ? tr.volume : 0.32;
     // Match either preferred or fallback stem so we don't reload needlessly
     const stem = "/" + tr.base + ".";
     const already =
@@ -282,7 +282,7 @@
     const a = ensureBgmElement();
     a.loop = true;
     a.muted = false;
-    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.45;
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.32;
     bgmWantPlay = true;
     const p = a.play();
     if (p && typeof p.then === "function") {
