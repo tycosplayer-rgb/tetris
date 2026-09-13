@@ -63,16 +63,16 @@
    * `base` is the stem (01…10); extension chosen at runtime.
    */
   const BGM_TRACKS = [
-    { name: "轻快", base: "01", volume: 0.20 },
-    { name: "沉稳", base: "02", volume: 0.20 },
-    { name: "电子", base: "03", volume: 0.18 },
-    { name: "像素", base: "04", volume: 0.19 },
-    { name: "梦幻", base: "05", volume: 0.22 },
-    { name: "紧张", base: "06", volume: 0.18 },
-    { name: "探索", base: "07", volume: 0.19 },
-    { name: "夜行", base: "08", volume: 0.20 },
-    { name: "赛博", base: "09", volume: 0.18 },
-    { name: "田园", base: "10", volume: 0.22 },
+    { name: "轻快", base: "01", volume: 0.10 },
+    { name: "沉稳", base: "02", volume: 0.10 },
+    { name: "电子", base: "03", volume: 0.09 },
+    { name: "像素", base: "04", volume: 0.10 },
+    { name: "梦幻", base: "05", volume: 0.11 },
+    { name: "紧张", base: "06", volume: 0.09 },
+    { name: "探索", base: "07", volume: 0.10 },
+    { name: "夜行", base: "08", volume: 0.10 },
+    { name: "赛博", base: "09", volume: 0.09 },
+    { name: "田园", base: "10", volume: 0.11 },
   ];
 
   function readFlag(key, fallback) {
@@ -136,6 +136,10 @@
   let bgmActiveExt = PREFERRED_EXT;
   /** Whether we already tried the alternate extension for this track load. */
   let bgmTriedFallback = false;
+  /** Web Audio tap for BGM — iOS often ignores HTMLAudioElement.volume. */
+  let bgmSource = null;
+  let bgmBusGain = null;
+  let bgmBusSilent = false;
 
   function currentTrack() {
     return BGM_TRACKS[bgmTrack] || BGM_TRACKS[0];
@@ -156,7 +160,7 @@
     masterGain.connect(ctx.destination);
 
     sfxGain = ctx.createGain();
-    sfxGain.gain.value = sfxEnabled ? 3.4 : 0;
+    sfxGain.gain.value = sfxEnabled ? 4.6 : 0;
     sfxGain.connect(masterGain);
     return ctx;
   }
@@ -165,7 +169,60 @@
     if (!sfxGain || !ctx) return;
     const now = ctx.currentTime;
     sfxGain.gain.cancelScheduledValues(now);
-    sfxGain.gain.setValueAtTime(sfxEnabled ? 3.4 : 0, now);
+    sfxGain.gain.setValueAtTime(sfxEnabled ? 4.6 : 0, now);
+  }
+
+  function trackBgmLevel() {
+    const tr = currentTrack();
+    const v = tr && tr.volume != null ? tr.volume : 0.10;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function ensureBgmGraph() {
+    const c = ensureContext();
+    if (!c || !masterGain) return null;
+    const a = bgmAudio || ensureBgmElement();
+    if (!a) return null;
+    if (!bgmBusGain) {
+      bgmBusGain = c.createGain();
+      bgmBusGain.gain.value = bgmBusSilent ? 0 : trackBgmLevel();
+      bgmBusGain.connect(masterGain);
+    }
+    if (!bgmSource) {
+      try {
+        bgmSource = c.createMediaElementSource(a);
+        bgmSource.connect(bgmBusGain);
+        // Element output is redirected into the graph; keep element.volume at 1
+        // and drive loudness via bgmBusGain (works on iOS).
+        try {
+          a.volume = 1;
+        } catch (_) {}
+      } catch (_) {
+        /* already connected or unsupported */
+      }
+    }
+    return bgmBusGain;
+  }
+
+  function applyBgmBusLevel() {
+    const g = ensureBgmGraph();
+    if (!g || !ctx) return;
+    const now = ctx.currentTime;
+    const level = bgmBusSilent ? 0 : trackBgmLevel();
+    try {
+      g.gain.cancelScheduledValues(now);
+      // setValueAtTime is sample-accurate / immediate vs HTMLAudio volume quirks
+      g.gain.setValueAtTime(level, now);
+    } catch (_) {
+      try {
+        g.gain.value = level;
+      } catch (__) {}
+    }
+  }
+
+  function setBgmBusSilent(silent) {
+    bgmBusSilent = !!silent;
+    applyBgmBusLevel();
   }
 
   function resumeContext() {
@@ -182,7 +239,7 @@
     const a = new Audio();
     a.loop = true;
     a.preload = "auto";
-    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.20;
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.10;
     a.addEventListener("error", () => {
       const failedFile = currentFile(bgmActiveExt);
       const errMsg = a.error && a.error.message;
@@ -236,6 +293,7 @@
     a.addEventListener("loadeddata", onReady);
     bgmAudio = a;
     loadCurrentTrackSrc(false);
+    if (ctx) ensureBgmGraph();
     return a;
   }
 
@@ -248,7 +306,7 @@
     const url = musicUrl(file);
     bgmLoadError = false;
     a.loop = true;
-    a.volume = tr.volume != null ? tr.volume : 0.20;
+    a.volume = tr.volume != null ? tr.volume : 0.10;
     // Match either preferred or fallback stem so we don't reload needlessly
     const stem = "/" + tr.base + ".";
     const already =
@@ -282,8 +340,13 @@
     const a = ensureBgmElement();
     a.loop = true;
     a.muted = false;
-    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.20;
+    // Loudness via Web Audio bus; element.volume kept at 1 after graph connect.
+    try {
+      a.volume = bgmSource ? 1 : trackBgmLevel();
+    } catch (_) {}
     bgmWantPlay = true;
+    setBgmBusSilent(false);
+    applyBgmBusLevel();
     const p = a.play();
     if (p && typeof p.then === "function") {
       p.catch((err) => {
@@ -298,6 +361,8 @@
 
   function pauseBgmElement(reset) {
     bgmWantPlay = false;
+    // Cut the Web Audio bus first — instant even when element.volume is ignored.
+    setBgmBusSilent(true);
     if (!bgmAudio) return;
     try {
       bgmAudio.volume = 0;
@@ -343,7 +408,9 @@
 
     const c = ensureContext();
     ensureBgmElement();
+    ensureBgmGraph();
     applySfxGain();
+    applyBgmBusLevel();
 
     const resumeCtx =
       c && c.state === "suspended"
@@ -689,7 +756,7 @@
 
   function syncBgm() {
     if (bgmEnabled && unlocked && gameActive) startBgm();
-    else stopBgm(true);
+    else stopBgm(false);
   }
 
   function setSfxEnabled(on) {
@@ -782,8 +849,9 @@
   // Pause BGM when leaving the tab/app; resume on return if the game is active.
   // Prefer flags over bgmWantPlay — stopBgm clears that flag.
   function pauseBgmForLeave() {
-    // Mute first so silence is immediate; keep playhead for resume.
+    // Bus gain → 0 first (instant), then mute/pause element; keep playhead.
     bgmWantPlay = false;
+    setBgmBusSilent(true);
     if (!bgmAudio) return;
     try {
       bgmAudio.volume = 0;
