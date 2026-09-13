@@ -99,9 +99,9 @@
       if (v === null || v === undefined) return 0;
       const n = parseInt(v, 10);
       if (!Number.isFinite(n)) return 0;
-      // Accept 0–9 or legacy 1–10
-      if (n >= 1 && n <= 10) return n - 1;
+      // Stored as 0-based index 0–9. Legacy sole exception: "10" meant track 10.
       if (n >= 0 && n < BGM_TRACKS.length) return n;
+      if (n === 10) return BGM_TRACKS.length - 1;
       return 0;
     } catch (_) {
       return 0;
@@ -299,6 +299,16 @@
   function pauseBgmElement(reset) {
     bgmWantPlay = false;
     if (!bgmAudio) return;
+    try {
+      bgmAudio.volume = 0;
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      bgmAudio.muted = true;
+    } catch (_) {
+      /* ignore */
+    }
     try {
       bgmAudio.pause();
     } catch (_) {
@@ -772,34 +782,53 @@
   // Pause BGM when leaving the tab/app; resume on return if the game is active.
   // Prefer flags over bgmWantPlay — stopBgm clears that flag.
   function pauseBgmForLeave() {
-    // Keep playhead; do not reset. Resume uses syncBgm()/startBgm().
-    if (bgmAudio && !bgmAudio.paused) {
-      try {
-        bgmAudio.pause();
-      } catch (_) {}
-    }
+    // Mute first so silence is immediate; keep playhead for resume.
     bgmWantPlay = false;
+    if (!bgmAudio) return;
+    try {
+      bgmAudio.volume = 0;
+    } catch (_) {}
+    try {
+      bgmAudio.muted = true;
+    } catch (_) {}
+    try {
+      bgmAudio.pause();
+    } catch (_) {}
   }
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      pauseBgmForLeave();
-      return;
-    }
-    if (
-      document.visibilityState === "visible" &&
-      bgmEnabled &&
-      unlocked &&
-      gameActive
-    ) {
-      syncBgm();
-    }
-  });
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState === "hidden") {
+        pauseBgmForLeave();
+        return;
+      }
+      if (
+        document.visibilityState === "visible" &&
+        bgmEnabled &&
+        unlocked &&
+        gameActive
+      ) {
+        syncBgm();
+      }
+    },
+    true
+  );
 
-  // Mobile Safari / bfcache: also pause on pagehide.
-  window.addEventListener("pagehide", () => {
-    pauseBgmForLeave();
-  });
+  // Earlier / extra hooks — mute as soon as the page starts backgrounding.
+  window.addEventListener("pagehide", pauseBgmForLeave, true);
+  window.addEventListener(
+    "blur",
+    () => {
+      if (document.visibilityState === "hidden") pauseBgmForLeave();
+    },
+    true
+  );
+  document.addEventListener(
+    "freeze",
+    pauseBgmForLeave,
+    true
+  );
 
   window.TetrisAudio = {
     SFX_KEY,
