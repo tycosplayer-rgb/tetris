@@ -136,10 +136,6 @@
   let bgmActiveExt = PREFERRED_EXT;
   /** Whether we already tried the alternate extension for this track load. */
   let bgmTriedFallback = false;
-  /** Web Audio tap for BGM — iOS often ignores HTMLAudioElement.volume. */
-  let bgmSource = null;
-  let bgmBusGain = null;
-  let bgmBusSilent = false;
 
   function currentTrack() {
     return BGM_TRACKS[bgmTrack] || BGM_TRACKS[0];
@@ -170,59 +166,6 @@
     const now = ctx.currentTime;
     sfxGain.gain.cancelScheduledValues(now);
     sfxGain.gain.setValueAtTime(sfxEnabled ? 4.6 : 0, now);
-  }
-
-  function trackBgmLevel() {
-    const tr = currentTrack();
-    const v = tr && tr.volume != null ? tr.volume : 0.10;
-    return Math.max(0, Math.min(1, v));
-  }
-
-  function ensureBgmGraph() {
-    const c = ensureContext();
-    if (!c || !masterGain) return null;
-    const a = bgmAudio || ensureBgmElement();
-    if (!a) return null;
-    if (!bgmBusGain) {
-      bgmBusGain = c.createGain();
-      bgmBusGain.gain.value = bgmBusSilent ? 0 : trackBgmLevel();
-      bgmBusGain.connect(masterGain);
-    }
-    if (!bgmSource) {
-      try {
-        bgmSource = c.createMediaElementSource(a);
-        bgmSource.connect(bgmBusGain);
-        // Element output is redirected into the graph; keep element.volume at 1
-        // and drive loudness via bgmBusGain (works on iOS).
-        try {
-          a.volume = 1;
-        } catch (_) {}
-      } catch (_) {
-        /* already connected or unsupported */
-      }
-    }
-    return bgmBusGain;
-  }
-
-  function applyBgmBusLevel() {
-    const g = ensureBgmGraph();
-    if (!g || !ctx) return;
-    const now = ctx.currentTime;
-    const level = bgmBusSilent ? 0 : trackBgmLevel();
-    try {
-      g.gain.cancelScheduledValues(now);
-      // setValueAtTime is sample-accurate / immediate vs HTMLAudio volume quirks
-      g.gain.setValueAtTime(level, now);
-    } catch (_) {
-      try {
-        g.gain.value = level;
-      } catch (__) {}
-    }
-  }
-
-  function setBgmBusSilent(silent) {
-    bgmBusSilent = !!silent;
-    applyBgmBusLevel();
   }
 
   function resumeContext() {
@@ -293,7 +236,6 @@
     a.addEventListener("loadeddata", onReady);
     bgmAudio = a;
     loadCurrentTrackSrc(false);
-    if (ctx) ensureBgmGraph();
     return a;
   }
 
@@ -340,13 +282,8 @@
     const a = ensureBgmElement();
     a.loop = true;
     a.muted = false;
-    // Loudness via Web Audio bus; element.volume kept at 1 after graph connect.
-    try {
-      a.volume = bgmSource ? 1 : trackBgmLevel();
-    } catch (_) {}
+    a.volume = currentTrack().volume != null ? currentTrack().volume : 0.10;
     bgmWantPlay = true;
-    setBgmBusSilent(false);
-    applyBgmBusLevel();
     const p = a.play();
     if (p && typeof p.then === "function") {
       p.catch((err) => {
@@ -361,16 +298,15 @@
 
   function pauseBgmElement(reset) {
     bgmWantPlay = false;
-    // Cut the Web Audio bus first — instant even when element.volume is ignored.
-    setBgmBusSilent(true);
     if (!bgmAudio) return;
+    // muted=true is the reliable instant cut (volume alone is ignored on some mobile browsers)
     try {
-      bgmAudio.volume = 0;
+      bgmAudio.muted = true;
     } catch (_) {
       /* ignore */
     }
     try {
-      bgmAudio.muted = true;
+      bgmAudio.volume = 0;
     } catch (_) {
       /* ignore */
     }
@@ -408,9 +344,7 @@
 
     const c = ensureContext();
     ensureBgmElement();
-    ensureBgmGraph();
     applySfxGain();
-    applyBgmBusLevel();
 
     const resumeCtx =
       c && c.state === "suspended"
@@ -702,7 +636,10 @@
   function ensureRunningContext() {
     const c = ensureContext();
     if (!c) return Promise.resolve(null);
-    if (c.state === "running") return Promise.resolve(c);
+    if (c.state === "running") {
+      applySfxGain();
+      return Promise.resolve(c);
+    }
     if (!resumeInFlight) {
       resumeInFlight = c
         .resume()
@@ -717,6 +654,18 @@
         });
     }
     return resumeInFlight;
+  }
+
+  /** Called when the tab/app returns to the foreground. */
+  function onPageForeground() {
+    return ensureRunningContext().then(() => {
+      applySfxGain();
+      if (bgmEnabled && unlocked && gameActive) {
+        // Force unmute + play after leave muted the element.
+        playBgmElement();
+      }
+      return ctx;
+    });
   }
 
   function playSfx(name, detail) {
@@ -846,22 +795,9 @@
     window.addEventListener(ev, onFirstGesture, gestureOpts);
   });
 
-  // Pause BGM when leaving the tab/app; resume on return if the game is active.
-  // Prefer flags over bgmWantPlay — stopBgm clears that flag.
+  // Pause BGM when leaving the tab/app; restore AudioContext + BGM on return.
   function pauseBgmForLeave() {
-    // Bus gain → 0 first (instant), then mute/pause element; keep playhead.
-    bgmWantPlay = false;
-    setBgmBusSilent(true);
-    if (!bgmAudio) return;
-    try {
-      bgmAudio.volume = 0;
-    } catch (_) {}
-    try {
-      bgmAudio.muted = true;
-    } catch (_) {}
-    try {
-      bgmAudio.pause();
-    } catch (_) {}
+    pauseBgmElement(false);
   }
 
   document.addEventListener(
@@ -871,32 +807,18 @@
         pauseBgmForLeave();
         return;
       }
-      if (
-        document.visibilityState === "visible" &&
-        bgmEnabled &&
-        unlocked &&
-        gameActive
-      ) {
-        syncBgm();
+      if (document.visibilityState === "visible") {
+        onPageForeground();
       }
     },
     true
   );
 
-  // Earlier / extra hooks — mute as soon as the page starts backgrounding.
   window.addEventListener("pagehide", pauseBgmForLeave, true);
-  window.addEventListener(
-    "blur",
-    () => {
-      if (document.visibilityState === "hidden") pauseBgmForLeave();
-    },
-    true
-  );
-  document.addEventListener(
-    "freeze",
-    pauseBgmForLeave,
-    true
-  );
+  window.addEventListener("pageshow", () => {
+    onPageForeground();
+  }, true);
+  document.addEventListener("freeze", pauseBgmForLeave, true);
 
   window.TetrisAudio = {
     SFX_KEY,
